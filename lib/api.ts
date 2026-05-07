@@ -1,4 +1,6 @@
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+// Relative — Next.js rewrites /api/* → BACKEND_URL/api/* (next.config.js).
+// Set BACKEND_URL=http://localhost:8000 in .env.local for local dev.
+const BASE_URL = "";
 
 function getToken(): string | null {
   if (typeof window === "undefined") return null;
