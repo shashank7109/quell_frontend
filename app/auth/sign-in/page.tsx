@@ -7,20 +7,7 @@ import AuthLayout from "@/components/AuthLayout";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import GoogleButton from "@/components/GoogleButton";
-
-function googleOAuthURL(): string {
-  const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
-  const redirectUri = `${window.location.origin}/auth/callback`;
-  const params = new URLSearchParams({
-    client_id: clientId,
-    redirect_uri: redirectUri,
-    response_type: "code",
-    scope: "openid email profile",
-    access_type: "offline",
-    prompt: "select_account",
-  });
-  return `https://accounts.google.com/o/oauth2/auth?${params}`;
-}
+import { buildGoogleOAuthURL } from "@/lib/google-oauth";
 
 export default function SignIn() {
   const router = useRouter();
@@ -59,7 +46,13 @@ export default function SignIn() {
       }
     >
       {/* Google */}
-      <GoogleButton onClick={() => { window.location.href = googleOAuthURL(); }} />
+      <GoogleButton onClick={() => {
+        try {
+          window.location.href = buildGoogleOAuthURL();
+        } catch (e) {
+          setError(e instanceof Error ? e.message : "Google sign-in unavailable");
+        }
+      }} />
 
       {/* Divider */}
       <div className="flex items-center gap-3 my-5">
