@@ -12,9 +12,10 @@ const plans = [
     sub: "forever",
     highlight: false,
     features: [
-      "250 mutations / month",
+      "500 requirements / month",
       "1 API key",
-      "Rule-based generation",
+      "Rule-based generation (no LLM key needed)",
+      "Diagnostic report",
       "Community support",
     ],
     cta: "Get started",
@@ -27,7 +28,7 @@ const plans = [
     sub: "/ month",
     highlight: true,
     features: [
-      "10,000 mutations / month",
+      "Unlimited requirements",
       "5 API keys",
       "LLM fallback (Claude & GPT-4)",
       "Unlimited projects",
@@ -44,9 +45,8 @@ const plans = [
     sub: "/ month",
     highlight: false,
     features: [
-      "Unlimited mutations",
+      "Everything in Pro",
       "Unlimited API keys",
-      "LLM fallback",
       "10 team seats",
       "SSO / SAML",
       "Priority support + SLA",
@@ -93,7 +93,7 @@ export default function Home() {
             <Link href="#how-it-works" className="hover:text-white transition-colors">How it works</Link>
             <Link href="#pricing" className="hover:text-white transition-colors">Pricing</Link>
             <Link href="/docs" className="hover:text-white transition-colors">Docs</Link>
-            <a href="https://github.com/shashank7109/quell" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">GitHub</a>
+            <a href="https://github.com/shashank7109/quelltest_lib" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">GitHub</a>
           </div>
           <div className="flex items-center gap-3">
             <Link href="/auth/sign-in" className="text-sm text-[#555] hover:text-white transition-colors">Sign in</Link>
@@ -104,7 +104,7 @@ export default function Home() {
         </div>
       </nav>
 
-      {/* ── Hero — split layout ── */}
+      {/* ── Hero ── */}
       <section className="pt-24 pb-0 px-6">
         <div className="max-w-5xl mx-auto grid md:grid-cols-[1fr_1.05fr] gap-10 items-start pt-10">
 
@@ -112,19 +112,21 @@ export default function Home() {
           <div className="py-6">
             <div className="inline-flex items-center gap-2 text-xs text-[#555] border border-[#1a1a1a] rounded-full px-3.5 py-1.5 mb-8 bg-[#0a0a0a]">
               <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-              quelltest 0.1.0 — live on PyPI
+              quelltest 0.4.4 — live on PyPI
             </div>
 
             <h1 className="text-4xl md:text-5xl font-bold tracking-tight leading-[1.1] mb-5">
-              Your survived mutants
+              Your docstrings say what
               <br />
-              <span className="text-[#444]">don&apos;t have to stay that way.</span>
+              <span className="text-[#444]">your code should do.</span>
+              <br />
+              Quell proves it.
             </h1>
 
-            <p className="text-[#666] text-base leading-relaxed mb-8 max-w-[400px]">
-              Quell reads your mutmut or Stryker output, generates pytest assertions
-              for each surviving mutant, verifies they actually kill it, then writes
-              them into your test files.
+            <p className="text-[#666] text-base leading-relaxed mb-8 max-w-[420px]">
+              Quell reads your docstrings, Pydantic models, and bug reports — extracts
+              every testable requirement — then generates and verifies tests that actually
+              prove each one. No LLM key required.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-3 mb-10">
@@ -135,7 +137,7 @@ export default function Home() {
                 Start for free <ArrowRight size={13} />
               </Link>
               <a
-                href="https://github.com/shashank7109/quell"
+                href="https://github.com/shashank7109/quelltest_lib"
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex items-center justify-center gap-2 border border-[#1a1a1a] text-[#555] font-medium px-5 py-2.5 rounded-lg hover:text-white hover:border-[#2a2a2a] transition-colors text-sm"
@@ -147,7 +149,7 @@ export default function Home() {
             <CopyCommand />
 
             <div className="mt-8 flex items-center gap-5 text-xs text-[#333]">
-              <span className="flex items-center gap-1.5"><span className="w-1 h-1 rounded-full bg-[#333]" />9 operators</span>
+              <span className="flex items-center gap-1.5"><span className="w-1 h-1 rounded-full bg-[#333]" />no LLM needed</span>
               <span className="flex items-center gap-1.5"><span className="w-1 h-1 rounded-full bg-[#333]" />zero false positives</span>
               <span className="flex items-center gap-1.5"><span className="w-1 h-1 rounded-full bg-[#333]" />MIT</span>
             </div>
@@ -155,7 +157,6 @@ export default function Home() {
 
           {/* Right — Terminal */}
           <div className="bg-[#080808] border border-[#1a1a1a] rounded-xl overflow-hidden font-mono text-xs md:sticky md:top-20">
-            {/* Window chrome */}
             <div className="flex items-center gap-2 px-4 py-3 border-b border-[#111]">
               <span className="w-2.5 h-2.5 rounded-full bg-[#222]" />
               <span className="w-2.5 h-2.5 rounded-full bg-[#222]" />
@@ -165,31 +166,34 @@ export default function Home() {
             <div className="p-5 space-y-1 leading-[1.8]">
               <p>
                 <span className="text-[#333]">$ </span>
-                <span className="text-white">quell scan --source mutmut</span>
+                <span className="text-white">quell check payments.py --fix</span>
               </p>
-              <p className="text-[#3a3a3a]">  scanning .mutmut-cache ...</p>
-              <p className="text-[#555]">
-                {"  "}SURVIVED{"   "}
-                <span className="text-white">14</span> mutants in calculator.py
+              <p className="text-[#3a3a3a]">  scanning specifications...</p>
+              <p className="text-[#2a2a2a] pt-1">  ─────────────────────────────────────</p>
+              <p>
+                <span className="text-[#444]">  process_payment  </span>
+                <span className="text-yellow-600">MUST_RAISE  </span>
+                <span className="text-green-500">✓ verified</span>
               </p>
-              <p className="text-[#2a2a2a] pt-1">{"  "}─────────────────────────</p>
-              <p className="text-[#444]">{"  "}calculator.py:20{"  "}BOUNDARY_SHIFT{"  "}<span className="text-[#555]">&gt; ≥</span></p>
-              <p className="text-[#444]">{"  "}calculator.py:34{"  "}ARITHMETIC_OP{"  "}<span className="text-[#555]">+ -</span></p>
-              <p className="text-[#444]">{"  "}calculator.py:41{"  "}RETURN_VALUE{"   "}<span className="text-[#555]">x None</span></p>
-              <p className="text-[#333]">{"  "}... 11 more</p>
-              <p className="pt-2">
-                <span className="text-[#333]">$ </span>
-                <span className="text-white">quell fix</span>
+              <p>
+                <span className="text-[#444]">  process_payment  </span>
+                <span className="text-yellow-600">MUST_RETURN </span>
+                <span className="text-green-500">✓ verified</span>
               </p>
-              <p className="text-[#555]">{"  "}[1/14]{"  "}BOUNDARY_SHIFT{"  "}line 20{"  "}<span className="text-green-500">✓ killed</span></p>
-              <p className="text-[#555]">{"  "}[2/14]{"  "}ARITHMETIC_OP{"  "}line 34{"  "}<span className="text-green-500">✓ killed</span></p>
-              <p className="text-[#555]">{"  "}[3/14]{"  "}RETURN_VALUE{"  "}{"  "}line 41{"  "}<span className="text-green-500">✓ killed</span></p>
-              <p className="text-[#555]">{"  "}...</p>
-              <p className="text-[#555]">{"  "}[13/14]{"  "}UNKNOWN{"  "}<span className="text-[#444]">→ LLM fallback</span>{"  "}<span className="text-green-500">✓ killed</span></p>
-              <p className="text-[#555]">{"  "}[14/14]{"  "}UNKNOWN{"  "}<span className="text-[#333]">→ skipped</span></p>
-              <p className="text-[#222] pt-1">{"  "}─────────────────────────</p>
-              <p className="text-green-500">{"  "}12 tests written → test_calculator.py</p>
-              <p className="text-[#333]">{"  "}1 mutant skipped (no rule, no LLM key)</p>
+              <p>
+                <span className="text-[#444]">  process_payment  </span>
+                <span className="text-yellow-600">BOUNDARY    </span>
+                <span className="text-green-500">✓ verified</span>
+              </p>
+              <p>
+                <span className="text-[#444]">  PaymentRequest   </span>
+                <span className="text-yellow-600">ENUM_VALID  </span>
+                <span className="text-green-500">✓ verified</span>
+              </p>
+              <p className="text-[#2a2a2a]">  ─────────────────────────────────────</p>
+              <p className="text-green-500">  4 tests written → tests/test_payments.py</p>
+              <p className="text-[#555]">  Score: 100% (4/4 covered)</p>
+              <p className="text-[#333]">  Diagnostic report: .quell/report.json</p>
               <p className="pt-2 text-[#333]">$ <span className="animate-pulse">▋</span></p>
             </div>
           </div>
@@ -202,10 +206,11 @@ export default function Home() {
         <div className="max-w-5xl mx-auto px-6 py-5 flex flex-wrap items-center gap-x-8 gap-y-3">
           <span className="text-xs text-[#333] uppercase tracking-widest font-medium">Works with</span>
           {[
-            { label: "mutmut", href: "https://github.com/boxed/mutmut" },
-            { label: "Stryker", href: "https://stryker-mutator.io" },
             { label: "pytest", href: "https://pytest.org" },
+            { label: "Pydantic", href: "https://docs.pydantic.dev" },
             { label: "libcst", href: "https://libcst.readthedocs.io" },
+            { label: "Claude", href: "https://anthropic.com" },
+            { label: "GPT-4", href: "https://openai.com" },
           ].map((t) => (
             <a
               key={t.label}
@@ -226,71 +231,73 @@ export default function Home() {
 
           <div className="mb-16">
             <p className="text-xs font-medium tracking-widest text-[#333] uppercase mb-3">How it works</p>
-            <h2 className="text-2xl md:text-3xl font-bold text-white tracking-tight max-w-sm">
-              From scan to merged test in under a minute.
+            <h2 className="text-2xl md:text-3xl font-bold text-white tracking-tight max-w-md">
+              From docstring to verified test in seconds.
             </h2>
           </div>
 
-          {/* Vertical step list */}
           <div className="divide-y divide-[#111]">
             {[
               {
                 n: "01",
-                title: "Scan your mutation results",
-                body: "Run quell scan against your mutmut cache or Stryker JSON output. Both parse in under 50 ms. No configuration files required.",
+                title: "Read your existing specs",
+                body: "Quell scans docstrings (Raises:, Returns: blocks), Pydantic models (Field validators, Literal types), and plain-English bug descriptions. No new annotations required.",
                 snippet: [
                   { t: "dim", v: "$ " },
-                  { t: "white", v: "quell scan --source mutmut" },
+                  { t: "white", v: "quell check payments.py" },
                   { t: "nl" },
-                  { t: "muted", v: "  SURVIVED  14 mutants in calculator.py" },
+                  { t: "muted", v: "  MUST_RAISE   — ValueError: amount <= 0" },
+                  { t: "nl" },
+                  { t: "muted", v: "  MUST_RETURN  — dict with transaction_id" },
+                  { t: "nl" },
+                  { t: "muted", v: "  BOUNDARY     — amount: gt=0" },
+                  { t: "nl" },
+                  { t: "muted", v: "  ENUM_VALID   — currency: USD, EUR, GBP" },
                 ],
               },
               {
                 n: "02",
-                title: "Generate killing assertions",
-                body: "Nine mutation operators have deterministic rule-based generators — no network call, no latency, no hallucinations. LLM is the fallback for the rare UNKNOWN case.",
+                title: "Find gaps — no test execution needed",
+                body: "An AST-based coverage checker scans your test files and marks each requirement as covered or uncovered. Fast, static, no pytest run required.",
                 snippet: [
-                  { t: "dim", v: "$ " },
-                  { t: "white", v: "quell fix" },
+                  { t: "muted", v: "  Score: 0% (0/4 covered)" },
                   { t: "nl" },
-                  { t: "muted", v: "  12 / 14 handled by rule engine" },
+                  { t: "muted", v: "  4 gap(s) found." },
                   { t: "nl" },
-                  { t: "muted", v: "  2 / 14 sent to LLM fallback" },
+                  { t: "muted", v: "  Run with --fix to generate tests." },
                 ],
               },
               {
                 n: "03",
-                title: "Verify before writing anything",
-                body: "Every test is run against the live mutant in an isolated subprocess. The original suite must pass. The generated test must fail on the mutant. Both conditions required.",
+                title: "Verify before writing — the moat",
+                body: "Every generated test must PASS on correct code AND FAIL on violated code. Quell injects targeted violations (removes the raise, weakens the threshold, replaces the return) and runs both phases in subprocess isolation.",
                 snippet: [
-                  { t: "green", v: "  ✓ original suite passes" },
+                  { t: "green", v: "  ✓ test passes on original code" },
                   { t: "nl" },
-                  { t: "green", v: "  ✓ mutant confirmed killed by test" },
+                  { t: "green", v: "  ✓ test fails on violated code" },
                   { t: "nl" },
-                  { t: "muted", v: "  → safe to inject" },
+                  { t: "muted", v: "  → safe to write" },
                 ],
               },
               {
                 n: "04",
-                title: "Inject with the CST, not regex",
-                body: "Tests are inserted using libcst — a lossless concrete syntax tree parser. Your comments, spacing, and formatting are preserved exactly. Source files are backed up first with a finally-block restore on any failure.",
+                title: "Write with libcst. Backup always.",
+                body: "Tests are injected using libcst — a lossless concrete syntax tree. Your comments, spacing, and formatting are preserved. Source is backed up first and always restored in a finally block.",
                 snippet: [
-                  { t: "muted", v: "  backed up  calculator.py → .quell/backups/" },
+                  { t: "muted", v: "  backed up  payments.py → .quell/backups/" },
                   { t: "nl" },
-                  { t: "green", v: "  ✓ test_calculator.py  +12 assertions" },
+                  { t: "green", v: "  ✓ tests/test_payments.py  +4 tests" },
                   { t: "nl" },
-                  { t: "muted", v: "  formatting preserved by libcst" },
+                  { t: "muted", v: "  Diagnostic report: .quell/report.json" },
                 ],
               },
             ].map((step) => (
               <div key={step.n} className="grid md:grid-cols-[1fr_1fr] gap-8 py-10 group">
-                {/* Left */}
                 <div>
                   <span className="text-[11px] font-mono font-bold text-[#2a2a2a] tracking-widest block mb-4">{step.n}</span>
                   <h3 className="text-white font-semibold text-lg mb-3 leading-snug">{step.title}</h3>
                   <p className="text-[#555] text-sm leading-relaxed">{step.body}</p>
                 </div>
-                {/* Right — inline code block */}
                 <div className="bg-[#080808] border border-[#111] rounded-xl px-5 py-4 font-mono text-xs leading-[1.9] self-start">
                   {step.snippet.map((token, i) => {
                     if (token.t === "nl") return <br key={i} />;
@@ -317,24 +324,20 @@ export default function Home() {
               Rule-based first.<br />LLM as last resort.
             </h2>
             <p className="text-[#555] text-sm leading-relaxed">
-              Most mutation testing tools default to sending all your code to an LLM and hoping
-              for the best. Quell inverts this. Nine operators have hardcoded, deterministic
-              generators. LLM is only invoked when the rule engine genuinely has no answer —
-              and only if you&apos;ve configured a key.
+              Most test generation tools send your code to an LLM and hope for the best.
+              Quell inverts this. Every constraint kind has a deterministic rule-based generator —
+              no network call, no hallucinations, no API key required. LLM is only invoked
+              for complex unstructured specs, and only if you configure a key.
             </p>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {[
-              "BOUNDARY_SHIFT",
-              "ARITHMETIC_OP",
-              "LOGICAL_OP",
-              "COMPARISON_OP",
-              "RETURN_VALUE",
-              "STATEMENT_DEL",
-              "CONSTANT_MUTATION",
-              "DECORATOR_REMOVAL",
-              "COLLECTION_OP",
-              { label: "UNKNOWN →  LLM", dim: true },
+              "MUST_RAISE",
+              "MUST_RETURN",
+              "BOUNDARY",
+              "ENUM_VALID",
+              "BUG_REPRO",
+              { label: "CUSTOM →  LLM", dim: true },
             ].map((op) => {
               const label = typeof op === "string" ? op : op.label;
               const dim   = typeof op === "string" ? false : op.dim;
@@ -351,6 +354,34 @@ export default function Home() {
                 </div>
               );
             })}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Diagnostic report ── */}
+      <section className="py-16 px-6 border-t border-[#111]">
+        <div className="max-w-5xl mx-auto grid md:grid-cols-[1fr_1.4fr] gap-12 items-start">
+          <div>
+            <p className="text-xs font-medium tracking-widest text-[#333] uppercase mb-4">Privacy-safe feedback loop</p>
+            <h2 className="text-2xl font-bold text-white tracking-tight mb-4">
+              Every run generates a diagnostic report.
+            </h2>
+            <p className="text-[#555] text-sm leading-relaxed">
+              After every <code className="text-[#888] font-mono text-xs">--fix</code> run, Quell writes <code className="text-[#888] font-mono text-xs">.quell/report.json</code> — a
+              privacy-safe file that records where the rule engine succeeded, where it failed,
+              and which argument types it couldn&apos;t stub. No source code, no full paths.
+              Safe to share with the Quell maintainer to improve coverage over time.
+            </p>
+          </div>
+          <div className="bg-[#080808] border border-[#111] rounded-xl px-5 py-4 font-mono text-xs leading-[1.9]">
+            <p className="text-[#333]">{"{"}</p>
+            <p className="pl-4"><span className="text-[#555]">&quot;quell_version&quot;</span><span className="text-[#333]">: </span><span className="text-[#888]">&quot;0.4.4&quot;</span><span className="text-[#333]">,</span></p>
+            <p className="pl-4"><span className="text-[#555]">&quot;written&quot;</span><span className="text-[#333]">: </span><span className="text-green-500">41</span><span className="text-[#333]">,</span></p>
+            <p className="pl-4"><span className="text-[#555]">&quot;fails_on_correct&quot;</span><span className="text-[#333]">: </span><span className="text-yellow-600">15</span><span className="text-[#333]">,</span></p>
+            <p className="pl-4"><span className="text-[#555]">&quot;doesnt_catch_violation&quot;</span><span className="text-[#333]">: </span><span className="text-green-500">0</span><span className="text-[#333]">,</span></p>
+            <p className="pl-4"><span className="text-[#555]">&quot;unknown_type_frequency&quot;</span><span className="text-[#333]">: </span><span className="text-[#444]">{"{}"}</span><span className="text-[#333]">,</span></p>
+            <p className="pl-4 text-[#333]">&quot;_note&quot;: &quot;No source code. Safe to share.&quot;</p>
+            <p className="text-[#333]">{"}"}</p>
           </div>
         </div>
       </section>
@@ -427,7 +458,8 @@ export default function Home() {
             <span className="text-[#333] text-sm">© 2026 Quell. MIT License.</span>
           </div>
           <div className="flex items-center gap-6 text-sm text-[#333]">
-            <a href="https://github.com/shashank7109/quell" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">GitHub</a>
+            <a href="https://github.com/shashank7109/quelltest_lib" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">GitHub</a>
+            <Link href="/docs" className="hover:text-white transition-colors">Docs</Link>
             <Link href="/auth/sign-in" className="hover:text-white transition-colors">Sign in</Link>
             <Link href="/auth/sign-up" className="hover:text-white transition-colors">Sign up</Link>
           </div>

@@ -111,6 +111,32 @@ The final write sequence:
 
 If step 4 or 5 fails, the backup is restored and Quell exits cleanly.
 
+## Diagnostic report
+
+After every `--fix` run, Quell writes `.quell/report.json` — a privacy-safe diagnostic file that records where the rule engine succeeded, where it failed, and which argument types it couldn't stub.
+
+```json
+{
+  "quell_version": "0.4.4",
+  "total_requirements": 79,
+  "written": 41,
+  "fails_on_correct": 15,
+  "doesnt_catch_violation": 0,
+  "skipped": 5,
+  "unknown_type_frequency": {},
+  "failure_reason_frequency": {
+    "test_logic_incorrect": 15
+  },
+  "_note": "This report contains no source code or full paths. Safe to share with the Quell maintainer to improve the rule engine."
+}
+```
+
+**What IS recorded:** function names, constraint kinds, verification outcome, unknown type annotations, aggregate counts.
+
+**What is NOT recorded:** source code, function bodies, full file paths, or any data that could identify proprietary business logic.
+
+Share this file with the Quell maintainer to improve rule engine coverage — each `unknown_type_frequency` entry tells us exactly which type stubs to add next.
+
 ## Audit log
 
 Every action Quell takes is appended to `.quell/audit.jsonl` as a structured JSON record:

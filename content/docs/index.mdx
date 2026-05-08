@@ -28,7 +28,10 @@ Quell reads your **specification** — the docstring that says "must raise Value
     Tests are injected using libcst — a lossless concrete syntax tree. Your comments and spacing are untouched.
   </Card>
   <Card title="Privacy first" icon="@">
-    Code is never sent to any server unless you configure an LLM key. LLM is only called for complex unstructured specs.
+    Code is never sent to any server unless you configure an LLM key. LLM is only called for complex unstructured specs — most requirements are handled by the rule engine with no network call.
+  </Card>
+  <Card title="Diagnostic report" icon="~">
+    Every `--fix` run writes `.quell/report.json` — a privacy-safe file recording where the rule engine succeeded and failed. No source code included. Safe to share.
   </Card>
 </CardGroup>
 

@@ -5,6 +5,41 @@ description: Release history for the quelltest package.
 
 # Changelog
 
+## v0.4.4 — 2026-05
+
+**Rule engine improvements — 75% score on real-world projects**
+
+- `must_raise` tests now use non-existent paths for Path parameters, correctly triggering `FileNotFoundError` and similar exceptions
+- `sig_inspector`: added stubs for `Callable[..., T]` (`lambda: None`), `logging.LogRecord`, `datetime.datetime`, `datetime.date`, `re.Pattern`
+- Violation injector: replaces ALL non-None `return` statements in the target function (not just the first), fixing `doesnt_catch_violation` for functions with early-return paths
+- `doesnt_catch_violation` count dropped from 6 → 0 on the reference project
+- `unknown_type_frequency` cleared — no more unknown stubs for common stdlib types
+
+## v0.4.3 — 2026-05
+
+**`quell --version` and version sync**
+
+- Added `--version` / `-V` flag to the CLI (`quell --version` now works)
+- Synced `quell.__version__` with `pyproject.toml` (was stale at `0.1.0`)
+
+## v0.4.2 — 2026-05
+
+**Targeted violation injection and optional-return detection**
+
+- Violation injector now targets ONLY lines inside the named function using AST line ranges — prevents accidentally violating a different function that shares the same pattern
+- `must_return` skips test generation when the return annotation is `Optional[X]` or `X | None` — avoids tests that would fail on cache-miss / empty inputs
+- `Verifier` walks up to `pyproject.toml` / `setup.py` to resolve the correct pytest working directory for nested packages
+
+## v0.4.1 — 2026-05
+
+**Privacy-safe diagnostic report and real callable test generation**
+
+- Every `--fix` run now writes `.quell/report.json` — records success/failure per requirement, unknown types, and failure reasons. No source code, no full paths. Safe to share.
+- Rule engine now uses AST-based signature inspection (`sig_inspector.py`) to build real callable tests — no more `raise NotImplementedError` scaffolds
+- Type stubs: `str`, `int`, `float`, `bool`, `Path` (→ `tmp_path`), `Optional[X]`, `List[X]`, `Dict`, and name-based inference
+- `sdk._fix_gaps()` implemented — `quell check --fix` now actually runs the rule engine, verifier, and writer
+- File scanner excludes `.venv` and `site-packages` to avoid picking up installed library code
+
 ## v0.4.0 — 2026-05
 
 **Spec-first architecture — reads requirements, not mutants**
