@@ -10,5 +10,7 @@ const nextConfig = {
       },
     ];
   },
+  // Allow next-mdx-remote to process MDX in content/
+  serverExternalPackages: ["gray-matter"],
 };
 module.exports = nextConfig;

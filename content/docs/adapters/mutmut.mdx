@@ -1,0 +1,94 @@
+---
+title: mutmut Adapter
+description: Read mutation results from mutmut 2.x and 3.x automatically.
+---
+
+# mutmut Adapter
+
+Quell's mutmut adapter reads from `.mutmut-cache` — the SQLite database that mutmut populates after a run. It automatically detects whether you're on mutmut 2.x or 3.x.
+
+## Setup
+
+```bash
+pip install mutmut quelltest
+```
+
+Run mutmut first:
+
+```bash
+mutmut run
+```
+
+Then use Quell:
+
+```bash
+quell scan --tool mutmut   # default, --tool flag optional
+```
+
+## Version detection
+
+Quell inspects the `.mutmut-cache` schema at runtime:
+
+- **mutmut 3.x**: has a `MutantStatus` table → queried directly via SQL
+- **mutmut 2.x**: has a `mutant` table → uses `mutmut results` + `mutmut show <id>` CLI
+
+No configuration needed — detection is automatic.
+
+## Configuring mutmut
+
+Create a `setup.cfg` or `pyproject.toml` section for mutmut:
+
+```toml
+# pyproject.toml
+[tool.mutmut]
+paths_to_mutate = "src/"
+tests_dir = "tests/"
+runner = "python -m pytest"
+```
+
+Or `setup.cfg`:
+
+```ini
+[mutmut]
+paths_to_mutate=src/
+runner=python -m pytest
+```
+
+## Running mutmut efficiently
+
+```bash
+# Run only on a specific file
+mutmut run src/payments.py
+
+# Run only specific operators (mutmut 3.x)
+mutmut run --operators BoundaryMutation
+
+# Run with parallelism
+mutmut run --j 4
+```
+
+## Cache location
+
+The `.mutmut-cache` file is created in your project root. Quell expects it there by default. Override with `--root`:
+
+```bash
+quell scan --root /path/to/project
+```
+
+## Troubleshooting
+
+**`.mutmut-cache` not found:**
+
+```bash
+# Make sure mutmut has been run
+mutmut run
+
+# Check the file exists
+ls -la .mutmut-cache
+```
+
+**All mutants show as UNKNOWN:**
+
+This means Quell couldn't parse the diff from `mutmut show`. This can happen with very complex mutations or custom mutation operators. Configure an [LLM provider](/docs/configuration/llm-providers) to handle these.
+
+**Windows:** mutmut 3.x requires Linux/macOS. Use WSL on Windows.

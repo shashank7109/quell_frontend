@@ -1,0 +1,80 @@
+---
+title: Introduction
+description: Quell auto-generates verified killing tests for survived mutants from mutmut and Stryker.
+---
+
+# Quell Documentation
+
+**Quell** is a mutation testing tool that auto-generates verified killing tests for survived mutants. It reads your `mutmut` or `Stryker` output, generates `pytest` assertions for each surviving mutant, verifies they actually kill it, then writes them directly into your test files.
+
+<Callout type="tip">
+  **New here?** Jump straight to the [Quickstart](/docs/quickstart) to kill your first mutant in under 5 minutes.
+</Callout>
+
+## What problem does Quell solve?
+
+Mutation testing tells you which mutants your tests missed. But fixing them is tedious — you have to manually read each diff, figure out what assertion would catch it, write the test, and verify it works.
+
+Quell automates this entire loop.
+
+<CardGroup>
+  <Card title="Rule-based generation" icon="⚡">
+    Nine mutation operators have deterministic generators. No LLM, no latency, no network call for the common cases.
+  </Card>
+  <Card title="Zero false positives" icon="✓">
+    Every generated test is verified against the live mutant in an isolated subprocess before being written to disk.
+  </Card>
+  <Card title="Formatting preserved" icon="◈">
+    Tests are injected using libcst — a lossless concrete syntax tree. Your comments and spacing are untouched.
+  </Card>
+  <Card title="Privacy first" icon="🔒">
+    Code is never sent to any server unless you configure an LLM key. LLM is only called for `UNKNOWN` operators.
+  </Card>
+</CardGroup>
+
+## How it works
+
+<Steps>
+  <Step title="Scan">
+    Quell reads your `.mutmut-cache` (SQLite) or Stryker JSON report and finds all survived mutants. Auto-detects mutmut v2 and v3.
+  </Step>
+  <Step title="Generate">
+    For each mutant, Quell's rule engine produces a candidate pytest assertion. Nine operators are handled deterministically — no LLM required.
+  </Step>
+  <Step title="Verify">
+    The candidate test is run twice in isolation: once against the original code (must pass), once against the mutated code (must fail). Tests that don't kill are discarded.
+  </Step>
+  <Step title="Write">
+    Verified tests are injected into your test file using libcst. Your formatting is preserved exactly. The source file is backed up first.
+  </Step>
+</Steps>
+
+## Supported tools
+
+| Tool | Format | Version |
+|------|--------|---------|
+| mutmut | `.mutmut-cache` SQLite | 2.x and 3.x auto-detected |
+| Stryker | `reports/mutation/mutation.json` | All versions |
+
+## Supported operators
+
+| Operator | Example |
+|----------|---------|
+| `BOUNDARY_SHIFT` | `>` → `>=` |
+| `ARITHMETIC_SWAP` | `+` → `-` |
+| `LOGICAL_SWAP` | `and` → `or` |
+| `COMPARISON_FLIP` | `==` → `!=` |
+| `RETURN_MUTATION` | `return x` → `return None` |
+| `STATEMENT_REMOVAL` | statement deleted |
+| `CONSTANT_MUTATION` | `0` → `1` |
+| `CONDITION_NEGATE` | `if x` → `if not x` |
+| `STRING_MUTATION` | `"str"` → `""` |
+| `UNKNOWN` | LLM fallback |
+
+## Quick install
+
+```bash
+pip install quelltest
+```
+
+Requires Python 3.11+. See [Installation](/docs/installation) for virtual environment setup and optional extras.

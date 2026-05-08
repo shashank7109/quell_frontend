@@ -1,0 +1,83 @@
+---
+title: quell repair
+description: Repair weak AI-generated test suites that let mutants survive.
+---
+
+# quell repair
+
+Repair mode is designed for codebases where AI tools (GitHub Copilot, ChatGPT, Cursor) generated your tests. These suites often have high statement coverage but let many mutants survive because they don't assert specific values.
+
+`quell repair` runs mutation testing internally, finds all survivors, and writes verified killing tests.
+
+## Usage
+
+```bash
+quell repair [TEST_DIR] [OPTIONS]
+```
+
+## Arguments
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `TEST_DIR` | `tests/` | Directory containing existing tests |
+
+## Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--source` | `src/` | Source code directory |
+| `--show-only` | `False` | Show what would be fixed, don't write |
+| `--llm` | `None` | LLM provider for UNKNOWN operators |
+| `--root`, `-r` | `.` | Project root directory |
+
+## Examples
+
+```bash
+# Repair tests/ against src/
+quell repair
+
+# Show what would be fixed (dry run)
+quell repair --show-only
+
+# Custom test and source directories
+quell repair tests/unit --source app/
+
+# With LLM for complex mutations
+quell repair --llm anthropic
+```
+
+## What it does
+
+1. Checks for an existing `.mutmut-cache`. If missing, runs `mutmut run` first.
+2. Reads all survived mutants in the source directory.
+3. For each mutant: generates → verifies → writes (same as `quell auto`).
+4. Reports score before and after.
+
+```
+Repairing tests/ against src/ ...
+
+  Running mutmut (no cache found)... done in 4m 12s
+
+  Found 31 survived mutants
+
+  [1/31]  BOUNDARY_SHIFT   payments.py:22   ✓ killed → written
+  [2/31]  RETURN_MUTATION  auth.py:88       ✓ killed → written
+  ...
+
+  ─────────────────────────────────────────
+  22 tests written   4 skipped   5 failed
+  Score: 52% → 83%  (+31%)
+```
+
+<Callout type="info">
+  If you have a large project and no existing `.mutmut-cache`, the initial `mutmut run` can take 20–30 minutes. Subsequent runs use the cache.
+</Callout>
+
+## When to use repair vs. fix
+
+| Use case | Command |
+|----------|---------|
+| You have mutation results and want to fix them interactively | `quell fix` |
+| You want to auto-fix all survivors without prompts | `quell auto` |
+| You have an AI-generated test suite and want to harden it | `quell repair` |
+| You're in CI and want to enforce a threshold | `quell ci` |

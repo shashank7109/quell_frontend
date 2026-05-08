@@ -1,0 +1,109 @@
+---
+title: CI/CD Integration
+description: Integrate Quell into your CI pipeline to enforce mutation score thresholds on every pull request.
+---
+
+# CI/CD Integration
+
+Quell's `ci` command is designed for automated pipelines. This guide covers the recommended patterns for different CI systems.
+
+## Core concept
+
+The recommended PR workflow is:
+
+1. Run `mutmut` only on **changed lines** (`--diff-only`) — keeps CI under 3 minutes
+2. Auto-fix survivors with `quell ci`
+3. Fail the build if score is below your threshold
+4. Post results as a PR comment
+
+## GitHub Actions
+
+See the dedicated [GitHub Actions guide](/docs/guides/github-actions) for a complete workflow YAML.
+
+## GitLab CI
+
+```yaml
+# .gitlab-ci.yml
+mutation-testing:
+  stage: test
+  image: python:3.11
+  script:
+    - pip install mutmut quelltest
+    - mutmut run
+    - quell ci --threshold 0.75 --report json
+  artifacts:
+    paths:
+      - .quell/ci-report.json
+    when: always
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+```
+
+## CircleCI
+
+```yaml
+# .circleci/config.yml
+jobs:
+  mutation-test:
+    docker:
+      - image: cimg/python:3.11
+    steps:
+      - checkout
+      - run:
+          name: Install deps
+          command: pip install mutmut quelltest
+      - run:
+          name: Run mutation testing
+          command: mutmut run
+      - run:
+          name: Quell CI
+          command: quell ci --diff-only --threshold 0.75
+      - store_artifacts:
+          path: .quell/
+```
+
+## Recommended thresholds
+
+| Project stage | Recommended threshold |
+|---------------|----------------------|
+| New project (no history) | `0.0` (no gate yet) |
+| Established project | `0.7` (70%) |
+| Critical path / payment code | `0.85` (85%) |
+| Strict / security-sensitive | `0.9` (90%) |
+
+Start low and ratchet up as your team builds the habit.
+
+## Caching mutmut results
+
+The `.mutmut-cache` SQLite file can be cached between runs:
+
+```yaml
+# GitHub Actions example
+- uses: actions/cache@v4
+  with:
+    path: .mutmut-cache
+    key: mutmut-${{ runner.os }}-${{ hashFiles('**/*.py') }}
+    restore-keys: |
+      mutmut-${{ runner.os }}-
+```
+
+When the cache is warm and no Python files changed, `mutmut run` is a no-op.
+
+## Performance tips
+
+| Tip | Impact |
+|-----|--------|
+| Use `--diff-only` on PR builds | 10x faster (2–3 min vs 20–30 min) |
+| Cache `.mutmut-cache` | Skips unchanged files on subsequent runs |
+| Run full `quell ci` only on `main` push | Keeps PR feedback fast |
+| Use `--report json` to decouple report from post | More resilient pipelines |
+
+## Exit codes
+
+Your CI pipeline should treat Quell's exit code as the gate:
+
+```bash
+quell ci --threshold 0.8
+echo "Exit code: $?"
+# 0 = passed, 1 = below threshold, 2 = no cache, 3 = error
+```

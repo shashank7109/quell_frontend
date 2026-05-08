@@ -1,0 +1,59 @@
+---
+title: quell scan
+description: List all survived mutants from your mutation testing tool.
+---
+
+# quell scan
+
+Reads your mutation testing cache and displays all survived mutants in a formatted table.
+
+## Usage
+
+```bash
+quell scan [OPTIONS]
+```
+
+## Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--tool`, `-t` | `mutmut` | Source tool: `mutmut` or `stryker` |
+| `--root`, `-r` | `.` | Project root directory |
+
+## Examples
+
+```bash
+# Scan mutmut results (default)
+quell scan
+
+# Scan Stryker results
+quell scan --tool stryker
+
+# Scan from a different directory
+quell scan --root /path/to/project
+```
+
+## Output
+
+```
+Scanning .mutmut-cache (mutmut 3.x) ...
+
+┌──────┬──────────────────┬──────┬─────────────────┬────────────────────────────────────┐
+│ ID   │ File             │ Line │ Operator        │ Mutation                           │
+├──────┼──────────────────┼──────┼─────────────────┼────────────────────────────────────┤
+│ 14   │ calculator.py    │ 20   │ BOUNDARY_SHIFT  │ amount > 0 → amount >= 0           │
+│ 27   │ payments.py      │ 41   │ ARITHMETIC_SWAP │ total + tax → total - tax          │
+│ 31   │ payments.py      │ 55   │ RETURN_MUTATION │ return result → return None        │
+│ 42   │ auth.py          │ 88   │ LOGICAL_SWAP    │ is_valid and is_active → ... or ...│
+│ 51   │ auth.py          │ 104  │ UNKNOWN         │ (complex expression)               │
+└──────┴──────────────────┴──────┴─────────────────┴────────────────────────────────────┘
+
+5 survived mutants across 3 files
+```
+
+## Notes
+
+- `quell scan` is read-only — it never modifies any file
+- If `.mutmut-cache` is not found, a helpful error is shown with setup instructions
+- Mutants with operator `UNKNOWN` will require an LLM for test generation (see [LLM Providers](/docs/configuration/llm-providers))
+- The `ID` column matches mutmut's internal mutant ID — use it with `quell fix --id <ID>`

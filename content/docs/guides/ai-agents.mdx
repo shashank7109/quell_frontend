@@ -1,0 +1,168 @@
+---
+title: AI Agents (MCP)
+description: Use Quell tools inside Claude Code, Cursor, Devin, and any MCP-compatible AI agent.
+---
+
+# AI Agents (MCP)
+
+Quell ships an MCP (Model Context Protocol) server that exposes its tools to AI coding agents. This lets Claude Code, Cursor, Devin, and similar agents verify tests, check mutation scores, and generate killing tests — all without leaving their workflow.
+
+## Install
+
+```bash
+pip install "quelltest[mcp]"
+```
+
+## Start the MCP server
+
+```bash
+quell-mcp
+```
+
+The server starts on `http://localhost:8765` by default.
+
+## Configure your agent
+
+### Claude Code
+
+Add to your `.claude/settings.json` or `~/.claude/settings.json`:
+
+```json
+{
+  "mcpServers": {
+    "quell": {
+      "command": "quell-mcp"
+    }
+  }
+}
+```
+
+### Cursor
+
+Add to Cursor MCP settings:
+
+```json
+{
+  "servers": {
+    "quell": {
+      "command": "quell-mcp",
+      "cwd": "/path/to/your/project"
+    }
+  }
+}
+```
+
+## Available tools
+
+### `verify_test`
+
+Verify that a test actually kills mutations in a source file.
+
+```
+Input:
+  test_code: str      — pytest function as a string
+  source_file: str    — path to the source file to test
+
+Output:
+  verified: bool
+  kills_mutants: int
+  score_delta: float
+  explanation: str
+  status: str
+```
+
+**Example (in Claude Code):**
+
+> "Does this test actually kill the boundary mutation in calculator.py?"
+
+Claude calls `verify_test` with your test code → gets back `verified: true, kills_mutants: 3`.
+
+### `get_survivors`
+
+List all surviving mutants for a given file.
+
+```
+Input:
+  source_file: str    — path to the source file
+
+Output:
+  List of mutants:
+    id: str
+    file: str
+    line: int
+    operator: str
+    original: str
+    mutated: str
+    function: str
+```
+
+### `generate_killing_test`
+
+Generate and verify a killing test for a specific mutant.
+
+```
+Input:
+  mutant_id: str      — mutant ID from get_survivors
+  source_file: str    — path to the source file
+
+Output:
+  test_code: str
+  test_function_name: str
+  verified: bool
+  explanation: str
+```
+
+### `get_quell_score`
+
+Get the mutation score for the project or a single file.
+
+```
+Input:
+  file_path: str | None   — optional, filter to one file
+
+Output:
+  total: float
+  percentage: int
+  grade: str
+  by_file: dict
+  total_mutants: int
+  killed_mutants: int
+  survived_mutants: int
+```
+
+## Example AI agent session
+
+```
+User: "Our payments.py has low mutation coverage. Fix it."
+
+Agent (Claude Code with Quell MCP):
+  1. Calls get_quell_score(file_path="payments.py")
+     → 52%, grade C, 8 survived mutants
+
+  2. Calls get_survivors(source_file="payments.py")
+     → Lists 8 mutants with IDs and line numbers
+
+  3. Calls generate_killing_test(mutant_id="27", source_file="payments.py")
+     → Returns verified test code
+
+  4. Writes test to tests/test_payments.py
+
+  5. Calls get_quell_score(file_path="payments.py")
+     → 87%, grade B
+
+Agent: "I've fixed 6 of 8 mutants in payments.py.
+        Score improved from 52% to 87%. 2 mutants are
+        likely equivalent and were skipped."
+```
+
+## SDK for custom agents
+
+If you're building your own agent, use the [Python SDK](/docs/sdk) directly instead of the MCP server:
+
+```python
+from quell import Quell
+
+q = Quell(llm="anthropic")
+result = q.get_score("payments.py")
+print(f"Score: {result.percentage}%")
+```

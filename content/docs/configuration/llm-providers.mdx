@@ -1,0 +1,107 @@
+---
+title: LLM Providers
+description: Configure Anthropic, OpenAI, or Ollama for UNKNOWN operator fallback.
+---
+
+# LLM Providers
+
+Quell's rule engine handles 9 mutation operators deterministically — no LLM required. LLM is only called when an operator is classified as `UNKNOWN`.
+
+<Callout type="info">
+  If you never see `UNKNOWN` operators in your `quell scan` output, you don't need to configure an LLM at all.
+</Callout>
+
+## Anthropic (Claude)
+
+**Best for:** High-quality test generation, complex mutations.
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+```
+
+```toml
+# pyproject.toml
+[tool.quell]
+llm_provider = "anthropic"
+llm_model = "claude-sonnet-4-6"   # or claude-opus-4-7
+```
+
+```bash
+quell fix --llm anthropic
+```
+
+Supported models: any `claude-*` model. The `claude-sonnet-4-6` model is recommended for a good balance of quality and cost.
+
+## OpenAI (GPT-4)
+
+```bash
+export OPENAI_API_KEY=sk-...
+```
+
+```toml
+[tool.quell]
+llm_provider = "openai"
+llm_model = "gpt-4o"
+```
+
+```bash
+quell fix --llm openai
+```
+
+## Ollama (local, offline)
+
+Run LLM inference locally — no API key, no data leaves your machine.
+
+```bash
+# Install Ollama: https://ollama.ai
+ollama pull llama3         # or codellama, deepseek-coder, etc.
+```
+
+```toml
+[tool.quell]
+llm_provider = "ollama"
+llm_model = "llama3"
+ollama_base_url = "http://localhost:11434"
+```
+
+```bash
+quell fix --llm ollama
+```
+
+<Callout type="tip">
+  For Python code, `codellama` or `deepseek-coder` tend to produce better tests than general models.
+</Callout>
+
+## Overriding on the command line
+
+The `--llm` flag on any command overrides `pyproject.toml`:
+
+```bash
+quell fix --llm openai           # use OpenAI even if anthropic is in config
+quell auto --llm ollama          # local Ollama
+quell ci --llm anthropic         # Claude in CI
+```
+
+## What the LLM receives
+
+When `UNKNOWN` operator is encountered, Quell sends:
+
+1. The mutation operator name and diff (`original → mutated`)
+2. The enclosing function's full source code
+3. Existing test names from the test file (to avoid duplicates)
+4. Clear instructions: write a minimal pytest assertion that fails on the mutant
+
+**What is NOT sent:**
+- Other files in your project
+- Environment variables or secrets
+- Database schemas or configuration
+
+## Cost estimates
+
+| Provider | Model | Cost per `UNKNOWN` test |
+|----------|-------|------------------------|
+| Anthropic | claude-sonnet-4-6 | ~$0.001 |
+| OpenAI | gpt-4o | ~$0.002 |
+| Ollama | local | $0 |
+
+On a typical project with 10–20 `UNKNOWN` mutants, total LLM cost is under $0.05.

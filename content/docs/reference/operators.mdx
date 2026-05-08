@@ -1,0 +1,202 @@
+---
+title: Mutation Operators
+description: All mutation operators Quell recognises and how it generates killing tests for each.
+---
+
+# Mutation Operators
+
+Quell classifies each survived mutant by its mutation operator and applies a deterministic generation strategy. Here's exactly what each operator is and how Quell kills it.
+
+## BOUNDARY_SHIFT
+
+**What it is:** A comparison operator is shifted to include or exclude the boundary value.
+
+**Examples:**
+
+| Original | Mutated |
+|----------|---------|
+| `price > 0` | `price >= 0` |
+| `count < limit` | `count <= limit` |
+| `amount >= 100` | `amount > 100` |
+
+**Quell's strategy:** Test at the exact boundary value.
+
+```python
+# For: if price > 0
+# Boundary is 0 — test both sides
+def test_kill_boundary_shift_14():
+    assert calculate(price=0) == 0          # at boundary: no discount
+    assert calculate(price=1) > 0           # above boundary: has discount
+```
+
+## ARITHMETIC_SWAP
+
+**What it is:** An arithmetic operator is swapped for another.
+
+**Examples:**
+
+| Original | Mutated |
+|----------|---------|
+| `total + tax` | `total - tax` |
+| `price * rate` | `price / rate` |
+| `a - b` | `a + b` |
+
+**Quell's strategy:** Use non-zero, non-symmetric inputs where the operators produce different results.
+
+```python
+# For: return a + b
+def test_kill_arithmetic_swap_27():
+    assert add(a=3, b=2) == 5    # 3+2=5, but 3-2=3
+```
+
+## LOGICAL_SWAP
+
+**What it is:** `and` is replaced with `or` (or vice versa).
+
+**Examples:**
+
+| Original | Mutated |
+|----------|---------|
+| `is_valid and is_active` | `is_valid or is_active` |
+| `has_role or is_admin` | `has_role and is_admin` |
+
+**Quell's strategy:** Provide input where exactly one condition is true. `and` returns `False`, `or` returns `True`.
+
+```python
+# For: if is_valid and is_active
+def test_kill_logical_swap_42():
+    # valid=True, active=False → and: False, or: True
+    assert can_login(is_valid=True, is_active=False) == False
+```
+
+## COMPARISON_FLIP
+
+**What it is:** A comparison operator is inverted.
+
+**Examples:**
+
+| Original | Mutated |
+|----------|---------|
+| `a == b` | `a != b` |
+| `x != y` | `x == y` |
+| `status is None` | `status is not None` |
+
+**Quell's strategy:** Test with an input where the original comparison is `True`.
+
+```python
+# For: if user == expected_user
+def test_kill_comparison_flip_19():
+    assert check_user(user="alice", expected="alice") == True
+```
+
+## RETURN_MUTATION
+
+**What it is:** A return value is replaced with `None` or a falsy value.
+
+**Examples:**
+
+| Original | Mutated |
+|----------|---------|
+| `return result` | `return None` |
+| `return total` | `return 0` |
+| `return items` | `return []` |
+
+**Quell's strategy:** Assert the exact return value (not just truthiness).
+
+```python
+# For: return calculate_total(...)
+def test_kill_return_mutation_31():
+    result = process_order(items=["a", "b"], price=10.0)
+    assert result is not None
+    assert result["total"] == 20.0    # exact value, not just truthy
+```
+
+## CONSTANT_MUTATION
+
+**What it is:** A numeric or string constant is changed.
+
+**Examples:**
+
+| Original | Mutated |
+|----------|---------|
+| `TAX_RATE = 0.2` | `TAX_RATE = 0.21` |
+| `MAX_RETRIES = 3` | `MAX_RETRIES = 4` |
+| `TIMEOUT = 30` | `TIMEOUT = 31` |
+
+**Quell's strategy:** Assert the exact value, not a range.
+
+```python
+# For: TAX_RATE = 0.2
+def test_kill_constant_mutation_8():
+    from config import TAX_RATE
+    assert TAX_RATE == 0.2    # == not >=
+```
+
+## STATEMENT_REMOVAL
+
+**What it is:** An entire statement is deleted from the code.
+
+**Examples:**
+
+| Original | Mutated |
+|----------|---------|
+| `cache.clear()` | (removed) |
+| `log.write(entry)` | (removed) |
+| `total += item.price` | (removed) |
+
+**Quell's strategy:** Assert the side effect of the removed statement.
+
+```python
+# For: cache.clear()  being removed
+def test_kill_statement_removal_55():
+    cache.set("key", "value")
+    clear_cache()
+    assert cache.get("key") is None    # side effect must have happened
+```
+
+## CONDITION_NEGATE
+
+**What it is:** A condition is negated.
+
+**Examples:**
+
+| Original | Mutated |
+|----------|---------|
+| `if is_valid:` | `if not is_valid:` |
+| `while queue:` | `while not queue:` |
+
+**Quell's strategy:** Input that makes the original condition true — the negated mutant will take the wrong branch.
+
+```python
+# For: if is_valid:
+def test_kill_condition_negate_67():
+    assert process(is_valid=True) == "success"    # not "error"
+```
+
+## STRING_MUTATION
+
+**What it is:** A string literal is replaced with an empty string or another string.
+
+**Examples:**
+
+| Original | Mutated |
+|----------|---------|
+| `"application/json"` | `""` |
+| `"error"` | `""` |
+
+**Quell's strategy:** Assert the exact non-empty string value.
+
+```python
+# For: content_type = "application/json"
+def test_kill_string_mutation_3():
+    response = make_request()
+    assert response.headers["Content-Type"] == "application/json"
+```
+
+## UNKNOWN
+
+**What it is:** An operator Quell's rule engine doesn't recognise.
+
+**Quell's strategy:** Call the configured LLM provider with the mutation diff and function source. See [LLM Providers](/docs/configuration/llm-providers).
+
+If no LLM is configured, the mutant is skipped with a notice.

@@ -1,0 +1,237 @@
+---
+title: Python SDK
+description: Integrate Quell into your own Python tooling with the quell.sdk.Quell class.
+---
+
+# Python SDK
+
+The `quell.sdk.Quell` class provides a clean Python API for all of Quell's functionality. Use it to integrate Quell into scripts, notebooks, CI tools, or AI agents.
+
+## Install
+
+```bash
+pip install quelltest
+```
+
+## Basic usage
+
+```python
+from quell import Quell
+
+q = Quell()
+
+# Get mutation score
+score = q.get_score()
+print(f"Score: {score.percentage}%  Grade: {score.grade}")
+
+# Auto-fix all survived mutants
+result = q.fix_all(auto_write=True)
+print(f"Fixed: {result.fixed}  Score: {result.score_before:.0%} → {result.score_after:.0%}")
+```
+
+## Constructor
+
+```python
+Quell(
+    llm: str = "anthropic",
+    model: str | None = None,
+    project_root: Path = Path("."),
+    local: bool = False,
+)
+```
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `llm` | `"anthropic"` | LLM provider: `"anthropic"`, `"openai"`, `"ollama"` |
+| `model` | `None` | Model name override (e.g. `"claude-sonnet-4-6"`) |
+| `project_root` | `Path(".")` | Root directory of the project |
+| `local` | `False` | Force Ollama (offline mode) |
+
+## Methods
+
+### `get_score`
+
+```python
+def get_score(path: str | Path | None = None) -> ScoreResult
+```
+
+Get mutation score for the whole project or a single file.
+
+```python
+# Project-wide score
+score = q.get_score()
+print(score.percentage)     # 93
+print(score.grade)          # "A"
+print(score.total_mutants)  # 53
+print(score.killed_mutants) # 49
+print(score.by_file)        # {"calculator.py": {"score": 1.0, "grade": "A"}, ...}
+
+# Per-file score
+score = q.get_score("payments.py")
+```
+
+### `fix_all`
+
+```python
+def fix_all(
+    source: str = "mutmut",
+    auto_write: bool = False,
+    threshold: float = 0.0,
+) -> FixResult
+```
+
+Generate + verify + write tests for all survived mutants.
+
+```python
+result = q.fix_all(auto_write=True, threshold=0.8)
+print(result.fixed)       # 12
+print(result.skipped)     # 1
+print(result.score_delta) # 0.22  (22% improvement)
+print(result.score_after) # 0.93
+```
+
+| Parameter | Description |
+|-----------|-------------|
+| `source` | Mutation tool: `"mutmut"` or `"stryker"` |
+| `auto_write` | Write without confirmation prompts |
+| `threshold` | Raise `ThresholdNotMet` if score < threshold after fixing |
+
+### `verify_test`
+
+```python
+def verify_test(
+    test_code: str,
+    source_file: str | Path,
+) -> VerifyResult
+```
+
+Verify that a test kills mutations in a source file.
+
+```python
+test_code = """
+def test_boundary():
+    from calculator import apply_discount
+    assert apply_discount(100.0, 100.0) == 100.0
+"""
+
+result = q.verify_test(test_code, "calculator.py")
+print(result.verified)       # True
+print(result.kills_mutants)  # 3
+print(result.explanation)    # "Test kills BOUNDARY_SHIFT at line 3"
+```
+
+### `repair`
+
+```python
+def repair(
+    test_dir: Path,
+    source_dir: Path,
+) -> RepairResult
+```
+
+Repair a weak test suite (typically AI-generated).
+
+```python
+result = q.repair(
+    test_dir=Path("tests/"),
+    source_dir=Path("src/"),
+)
+print(result.fixed)       # 22
+print(result.score_delta) # 0.31  (31% improvement)
+```
+
+## Return types
+
+### `ScoreResult`
+
+```python
+@dataclass
+class ScoreResult:
+    total: float          # 0.0–1.0
+    percentage: int       # 0–100
+    grade: str            # A/B/C/F
+    total_mutants: int
+    killed_mutants: int
+    survived_mutants: int
+    by_file: dict[str, dict]
+```
+
+### `FixResult`
+
+```python
+@dataclass
+class FixResult:
+    fixed: int
+    skipped: int
+    failed: int
+    score_before: float
+    score_after: float
+
+    @property
+    def score_delta(self) -> float: ...
+```
+
+### `VerifyResult`
+
+```python
+@dataclass
+class VerifyResult:
+    verified: bool
+    status: str           # VerificationStatus value
+    kills_mutants: int
+    score_delta: float
+    explanation: str
+    error_message: str | None
+```
+
+### `RepairResult`
+
+```python
+@dataclass
+class RepairResult:
+    fixed: int
+    skipped: int
+    failed: int
+    score_before: float
+    score_after: float
+
+    @property
+    def score_delta(self) -> float: ...
+    @property
+    def total(self) -> int: ...
+```
+
+## Complete example
+
+```python
+import os
+from pathlib import Path
+from quell import Quell
+
+os.environ["ANTHROPIC_API_KEY"] = "sk-ant-..."
+
+q = Quell(
+    llm="anthropic",
+    model="claude-sonnet-4-6",
+    project_root=Path("/my/project"),
+)
+
+# Check current state
+score = q.get_score()
+print(f"Before: {score.percentage}% ({score.survived_mutants} survived)")
+
+# Fix everything
+result = q.fix_all(auto_write=True)
+print(f"After: {result.score_after:.0%} ({result.fixed} tests written)")
+
+# Verify a hand-written test
+my_test = '''
+def test_exact_boundary():
+    from payments import process_payment
+    # Amount at exactly the fee threshold
+    result = process_payment(amount=50.0)
+    assert result["fee"] == 0.0
+'''
+v = q.verify_test(my_test, "payments.py")
+print(f"Test verified: {v.verified} (kills {v.kills_mutants} mutants)")
+```

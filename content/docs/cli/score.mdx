@@ -1,0 +1,123 @@
+---
+title: quell score
+description: Display mutation score per file and generate an SVG badge.
+---
+
+# quell score
+
+Reads `.mutmut-cache` and displays the mutation score per file, overall score, and optional delta from the last recorded run.
+
+## Usage
+
+```bash
+quell score [OPTIONS]
+```
+
+## Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--badge` | `False` | Generate `.quell/badge.svg` |
+| `--format` | `console` | Output format: `console` or `json` |
+| `--compare` | `None` | Compare against a label from history |
+| `--root`, `-r` | `.` | Project root directory |
+
+## Examples
+
+```bash
+# Show score in terminal
+quell score
+
+# Generate SVG badge
+quell score --badge
+
+# Output as JSON (for scripts/dashboards)
+quell score --format json
+
+# Compare with a saved baseline
+quell score --compare baseline
+```
+
+## Console output
+
+```
+  File               Total   Killed   Score   Grade
+  ─────────────────────────────────────────────────
+  calculator.py        14       14    100%      A
+  payments.py          13       11     84%      B
+  auth.py              18       12     66%      C
+  utils.py              8        3     37%      F
+  ─────────────────────────────────────────────────
+  Overall              53       40     75%      B
+
+  △ +4% from last run
+```
+
+## Grade thresholds
+
+| Grade | Score range |
+|-------|-------------|
+| A | ≥ 80% |
+| B | 60–79% |
+| C | 40–59% |
+| F | < 40% |
+
+## SVG badge
+
+```bash
+quell score --badge
+# Writes .quell/badge.svg
+```
+
+The badge follows shields.io style:
+
+- **Green** (`#4c1`): score ≥ 80%
+- **Yellow** (`#dfb317`): score 60–79%
+- **Red** (`#e05d44`): score < 60%
+
+Add to your README:
+
+```markdown
+![Mutation Score](.quell/badge.svg)
+```
+
+Or host it via the Quell cloud badge endpoint (coming in v0.4.0):
+
+```markdown
+![Mutation Score](https://quell.build/badge/{user}/{repo})
+```
+
+## JSON output
+
+```bash
+quell score --format json
+```
+
+```json
+{
+  "total": 0.75,
+  "percentage": 75,
+  "grade": "B",
+  "total_mutants": 53,
+  "killed_mutants": 40,
+  "survived_mutants": 13,
+  "by_file": {
+    "calculator.py": { "score": 1.0, "grade": "A", "killed": 14, "total": 14 },
+    "payments.py":   { "score": 0.84, "grade": "B", "killed": 11, "total": 13 }
+  }
+}
+```
+
+## Score history
+
+Quell automatically records a score snapshot to `.quell/history.json` every time `quell score` or `quell ci` runs. This powers the `△` delta indicator.
+
+To compare against a named baseline:
+
+```bash
+# Record current score with a label
+quell score          # auto-records
+
+# Later, compare
+quell score --compare baseline
+```

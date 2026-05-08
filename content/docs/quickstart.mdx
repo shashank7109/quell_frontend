@@ -1,0 +1,99 @@
+---
+title: Quickstart
+description: Kill your first survived mutant in under 5 minutes.
+---
+
+# Quickstart
+
+This guide assumes you already have `mutmut` installed and have run it at least once. If not, see [Installation](/docs/installation) for the full setup.
+
+## 1. Install Quell
+
+```bash
+pip install quelltest
+```
+
+## 2. Run mutmut (if you haven't already)
+
+```bash
+mutmut run
+```
+
+This populates `.mutmut-cache` in your project root. On a typical project this takes 5–30 minutes depending on size.
+
+## 3. See what survived
+
+```bash
+quell scan
+```
+
+You'll see a table like this:
+
+```
+┌──────┬──────────────────┬──────┬─────────────────┬─────────────────────────┐
+│ ID   │ File             │ Line │ Operator        │ Mutation                │
+├──────┼──────────────────┼──────┼─────────────────┼─────────────────────────┤
+│ 14   │ calculator.py    │ 20   │ BOUNDARY_SHIFT  │ amount > 0 → amount >= 0│
+│ 27   │ payments.py      │ 41   │ ARITHMETIC_SWAP │ total + tax → total - tax│
+│ 31   │ payments.py      │ 55   │ RETURN_MUTATION │ return result → return None│
+└──────┴──────────────────┴──────┴─────────────────┴─────────────────────────┘
+3 survived mutants
+```
+
+## 4. Fix one mutant interactively
+
+```bash
+quell fix --id 14
+```
+
+Quell will:
+1. Generate a pytest assertion for the `BOUNDARY_SHIFT` mutation
+2. Run the test against the original code (must pass)
+3. Run the test against the mutated code (must fail)
+4. Show you the result and ask to confirm
+
+```
+  Generated test:
+  ─────────────────────────────────────────────────────────────
+  def test_kill_mutant_14():
+      result = calculate_discount(amount=0)
+      assert result == 0
+  ─────────────────────────────────────────────────────────────
+  ✓ Original suite passes
+  ✓ Mutant killed by test
+
+  Write to tests/test_calculator.py? [y/n]:
+```
+
+Press `y` and the test is injected into your test file.
+
+## 5. Fix all survivors automatically
+
+```bash
+quell auto
+```
+
+Quell runs the full generate → verify → write loop for every survived mutant, no prompts.
+
+<Callout type="info">
+  Use `--dry-run` to preview what would be written without touching any files.
+</Callout>
+
+## 6. Check your mutation score
+
+```bash
+quell score
+```
+
+```
+  calculator.py    14 / 14  killed   100%  A
+  payments.py      11 / 13  killed    84%  B
+  ─────────────────────────────────────────
+  Overall          25 / 27  killed    92%  A
+```
+
+## Next steps
+
+- Set up [CI/CD integration](/docs/guides/ci-integration) to run Quell on every pull request
+- Add [LLM fallback](/docs/configuration/llm-providers) for `UNKNOWN` operators
+- Use the [Python SDK](/docs/sdk) to integrate Quell into your own tooling

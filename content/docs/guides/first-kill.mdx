@@ -1,0 +1,130 @@
+---
+title: Kill Your First Mutant
+description: A hands-on walkthrough of using Quell on a real Python module.
+---
+
+# Kill Your First Mutant
+
+This is a hands-on tutorial. We'll create a small Python module, run mutmut on it, and use Quell to write a test that kills a surviving mutant.
+
+## Setup
+
+```bash
+mkdir quell-demo && cd quell-demo
+python -m venv .venv && source .venv/bin/activate
+pip install mutmut pytest quelltest
+```
+
+## Create the source module
+
+```python
+# calculator.py
+def apply_discount(price: float, threshold: float = 100.0) -> float:
+    """Apply 10% discount if price exceeds threshold."""
+    if price > threshold:
+        return price * 0.9
+    return price
+```
+
+## Create a weak test
+
+```python
+# tests/test_calculator.py
+from calculator import apply_discount
+
+def test_discount_applied():
+    result = apply_discount(150)
+    assert result < 150  # too vague!
+```
+
+## Run mutmut
+
+```bash
+mutmut run
+```
+
+Output:
+```
+Mutating...
+⠦ 3/3  🎉 0  ⏰ 0  🤔 0  🙁 3
+```
+
+3 mutants survived. That `< 150` assertion isn't strong enough.
+
+## Scan with Quell
+
+```bash
+quell scan
+```
+
+```
+┌──────┬───────────────┬──────┬─────────────────┬────────────────────────────────────┐
+│ ID   │ File          │ Line │ Operator        │ Mutation                           │
+├──────┼───────────────┼──────┼─────────────────┼────────────────────────────────────┤
+│ 1    │ calculator.py │ 3    │ BOUNDARY_SHIFT  │ price > threshold → price >= ...   │
+│ 2    │ calculator.py │ 4    │ ARITHMETIC_SWAP │ price * 0.9 → price * 1.9          │
+│ 3    │ calculator.py │ 4    │ CONSTANT_MUTATION│ 0.9 → 1.9                         │
+└──────┴───────────────┴──────┴─────────────────┴────────────────────────────────────┘
+```
+
+## Fix mutant #1 (BOUNDARY_SHIFT)
+
+```bash
+quell fix --id 1
+```
+
+```
+[1/1] BOUNDARY_SHIFT  calculator.py:3
+
+  Original:  if price > threshold:
+  Mutated:   if price >= threshold:
+
+  Generated test:
+  ─────────────────────────────────────────────────────────────────
+  def test_kill_mutant_1_boundary_shift():
+      """Kill mutant 1: BOUNDARY_SHIFT at calculator.py:3"""
+      # price exactly at threshold should NOT receive discount
+      result = apply_discount(price=100.0, threshold=100.0)
+      assert result == 100.0
+  ─────────────────────────────────────────────────────────────────
+
+  ✓ Original suite passes  (0.21s)
+  ✓ Mutant killed by test  (0.19s)
+
+Write to tests/test_calculator.py? [y/N]:
+```
+
+Press **y**. The test is injected.
+
+## Why this test kills the mutant
+
+- **Original code:** `price > threshold` — `100.0 > 100.0` is `False`, so no discount. `apply_discount(100.0, 100.0)` returns `100.0`.
+- **Mutant:** `price >= threshold` — `100.0 >= 100.0` is `True`, so a discount IS applied. `apply_discount(100.0, 100.0)` returns `90.0`.
+- **Our test asserts** `result == 100.0` — passes on original, fails on mutant. ✓
+
+## Fix the rest automatically
+
+```bash
+quell auto
+```
+
+```
+  [1/3]  BOUNDARY_SHIFT   calculator.py:3   ✓ killed → written
+  [2/3]  ARITHMETIC_SWAP  calculator.py:4   ✓ killed → written
+  [3/3]  CONSTANT_MUTATION calculator.py:4  ✓ killed → written
+
+  3 tests written — 0 skipped
+  Score: 0% → 100%  (+100%)
+```
+
+## Check the final score
+
+```bash
+quell score
+```
+
+```
+  calculator.py    3 / 3  killed   100%  A
+```
+
+Your test suite now catches every mutant Quell tested. Congratulations — you've killed all surviving mutants.

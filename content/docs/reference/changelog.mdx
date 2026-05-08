@@ -1,0 +1,53 @@
+---
+title: Changelog
+description: Release history for the quelltest package.
+---
+
+# Changelog
+
+## v0.3.0 — 2026-05
+
+**GitHub App & VS Code Extension**
+
+- `quell github-comment` — post/update mutation score as idempotent PR comment
+- GitHub App (`quell-github-app`) — webhook server for automatic PR comments
+- GitHub App JWT auth (`quell/github/auth.py`) — RS256 JWT + installation token exchange
+- PR comment formatter with shields.io badge, per-file table, and collapsible test preview
+- VS Code extension (`vscode-quell/`) — inline score annotations and status bar badge
+- Published `quelltest[github]` optional extra (PyJWT, cryptography, FastAPI, uvicorn)
+- `quell-github-app` entry point
+
+## v0.2.0 — 2026-04
+
+**CI, Score, Repair, MCP, and SDK**
+
+- `quell ci` command with `--diff-only`, `--threshold`, and `--report` (console/json/github)
+- `quell score` command with SVG badge generation and score history tracking
+- `quell repair` command for zero-manual-steps test suite repair
+- `quell-mcp` MCP server with 4 tools for AI agent integration
+- `quell.sdk.Quell` Python SDK class
+- Score calculator (`quell/score/calculator.py`) — auto-detects mutmut 2.x vs 3.x schema
+- Diff parser (`quell/ci/diff_parser.py`) — git diff → changed line ranges
+- CI threshold enforcement (`quell/ci/threshold.py`) — exit code 1 on score below threshold
+- Published `quelltest[mcp]` optional extra
+
+## v0.1.0 — 2026-03
+
+**Initial release**
+
+- `quell scan` — list survived mutants from mutmut or Stryker
+- `quell fix` — interactive generate → verify → write loop
+- `quell auto` — non-interactive auto-fix with `--dry-run`
+- `quell report` — audit log viewer
+- `quell init` — pyproject.toml config initializer
+- Rule-based generators for 9 mutation operators
+- Verification engine with subprocess isolation and `finally`-block restore
+- libcst-based test injection preserving file formatting
+- mutmut 2.x + 3.x auto-detection
+- Stryker JSON adapter
+- Anthropic, OpenAI, and Ollama LLM providers
+- Published to PyPI as `quelltest`
+
+---
+
+[View on GitHub →](https://github.com/shashank7109/quell)

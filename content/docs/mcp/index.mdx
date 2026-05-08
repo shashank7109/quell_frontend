@@ -1,0 +1,66 @@
+---
+title: MCP Server
+description: Run Quell as an MCP server for AI agent integration.
+---
+
+# MCP Server
+
+Quell ships a Model Context Protocol (MCP) server that exposes its tools to any MCP-compatible AI agent.
+
+## Install
+
+```bash
+pip install "quelltest[mcp]"
+```
+
+## Start
+
+```bash
+quell-mcp
+# Listening on http://localhost:8765
+```
+
+## Tools
+
+| Tool | Description |
+|------|-------------|
+| `verify_test` | Check if a test kills mutations in a source file |
+| `get_survivors` | List all survived mutants for a file |
+| `generate_killing_test` | Generate a verified killing test for a mutant |
+| `get_quell_score` | Get mutation score for project or file |
+
+For full usage examples and agent configuration, see [AI Agents guide](/docs/guides/ai-agents).
+
+## MCP tool schemas
+
+### `verify_test`
+
+```json
+{
+  "name": "verify_test",
+  "description": "Verify a test kills mutations in a source file",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "test_code": { "type": "string", "description": "pytest function as a string" },
+      "source_file": { "type": "string", "description": "path to the source file" }
+    },
+    "required": ["test_code", "source_file"]
+  }
+}
+```
+
+### `get_quell_score`
+
+```json
+{
+  "name": "get_quell_score",
+  "description": "Get mutation score for project or a single file",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "file_path": { "type": "string", "description": "optional — filter to one file" }
+    }
+  }
+}
+```

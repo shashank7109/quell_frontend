@@ -1,0 +1,153 @@
+---
+title: GitHub Actions
+description: Complete GitHub Actions workflow for mutation testing with Quell.
+---
+
+# GitHub Actions
+
+A complete workflow for running Quell on every pull request, posting results as a PR comment, and updating a score badge on main.
+
+## Complete workflow
+
+```yaml
+# .github/workflows/mutation.yml
+name: Mutation Testing
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  mutation:
+    name: Mutation Testing
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # Required for --diff-only git diff
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache mutmut
+        uses: actions/cache@v4
+        with:
+          path: .mutmut-cache
+          key: mutmut-${{ runner.os }}-${{ hashFiles('**/*.py') }}
+          restore-keys: |
+            mutmut-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: |
+          pip install mutmut quelltest
+          pip install -e ".[dev]"      # install your project
+
+      - name: Run mutmut (PR — diff only)
+        if: github.event_name == 'pull_request'
+        run: mutmut run
+
+      - name: Run mutmut (main — full)
+        if: github.event_name == 'push'
+        run: mutmut run
+
+      - name: Quell CI (PR)
+        if: github.event_name == 'pull_request'
+        run: |
+          quell ci \
+            --diff-only \
+            --threshold 0.75 \
+            --report json
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}   # optional
+
+      - name: Quell CI (main)
+        if: github.event_name == 'push'
+        run: |
+          quell ci \
+            --threshold 0.75 \
+            --report json
+
+      - name: Post PR comment
+        if: github.event_name == 'pull_request'
+        run: |
+          quell github-comment \
+            --repo ${{ github.repository }} \
+            --pr ${{ github.event.pull_request.number }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Quell report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: quell-report
+          path: .quell/
+          retention-days: 30
+
+      - name: Update badge (main only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          quell score --badge
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .quell/badge.svg
+          git diff --staged --quiet || git commit -m "chore: update mutation score badge [skip ci]"
+          git push
+```
+
+## What the workflow does
+
+### On pull requests
+1. Checks out with full git history (needed for `--diff-only` diff)
+2. Caches `.mutmut-cache` to speed up subsequent runs
+3. Runs `mutmut run` (diff-only filter happens in `quell ci`)
+4. Runs `quell ci --diff-only` — only tests changed lines (2–3 min)
+5. Posts/updates a PR comment with the score and per-file breakdown
+6. Uploads `.quell/` as a build artifact
+
+### On main push
+1. Runs full mutation testing (all files)
+2. Updates the SVG badge and commits it back to `main`
+
+## Required secrets
+
+| Secret | Required | Description |
+|--------|----------|-------------|
+| `GITHUB_TOKEN` | Yes (automatic) | For PR comments — provided automatically by Actions |
+| `ANTHROPIC_API_KEY` | No | Only needed if you want LLM fallback for `UNKNOWN` operators |
+
+## PR comment preview
+
+The automated PR comment looks like:
+
+```
+🧬 Quell Mutation Report
+
+Score: 93% (+4% from last run)
+
+| File | Killed | Total | Score |
+|------|--------|-------|-------|
+| calculator.py | 14 | 14 | ✅ 100% A |
+| payments.py   | 11 | 13 | ✅ 84%  B |
+
+✅ Threshold passed (93% ≥ 75%)
+```
+
+## Minimal workflow (no PR comments)
+
+If you just want the threshold gate without the comment:
+
+```yaml
+- name: Mutation test
+  run: |
+    pip install mutmut quelltest
+    mutmut run
+    quell ci --diff-only --threshold 0.8
+```

@@ -1,0 +1,71 @@
+---
+title: quell auto
+description: Non-interactive auto-fix — generate and write all killing tests without prompts.
+---
+
+# quell auto
+
+Non-interactive version of `quell fix`. Runs the full generate → verify → write loop for every survived mutant without asking for confirmation.
+
+## Usage
+
+```bash
+quell auto [OPTIONS]
+```
+
+## Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--tool`, `-t` | `mutmut` | Source tool: `mutmut` or `stryker` |
+| `--root`, `-r` | `.` | Project root directory |
+| `--llm` | `None` | LLM provider: `anthropic`, `openai`, `ollama` |
+| `--dry-run` | `False` | Preview without writing any files |
+
+## Examples
+
+```bash
+# Auto-fix all mutants
+quell auto
+
+# Preview what would be written
+quell auto --dry-run
+
+# With LLM for unknown operators
+quell auto --llm anthropic
+
+# From a monorepo sub-package
+quell auto --root packages/payments
+```
+
+## Output
+
+```
+Auto-fixing 14 survived mutants ...
+
+  [1/14]  BOUNDARY_SHIFT   calculator.py:20   ✓ killed  → written
+  [2/14]  ARITHMETIC_SWAP  payments.py:41     ✓ killed  → written
+  [3/14]  RETURN_MUTATION  payments.py:55     ✓ killed  → written
+  [4/14]  LOGICAL_SWAP     auth.py:88         ✓ killed  → written
+  [5/14]  UNKNOWN          auth.py:104        ✗ skipped  (no LLM configured)
+  ...
+  [14/14] BOUNDARY_SHIFT   utils.py:201       ✓ killed  → written
+
+  ─────────────────────────────────────────────────────────
+  12 tests written   1 skipped (UNKNOWN)   1 skipped (verification failed)
+  Score: 71% → 93%  (+22%)
+```
+
+## Dry run
+
+With `--dry-run`, Quell performs all generation and verification steps but writes nothing to disk. Useful for auditing what Quell would do before committing.
+
+```bash
+quell auto --dry-run
+
+# Output shows "→ would write" instead of "→ written"
+```
+
+<Callout type="warning">
+  `quell auto` writes directly without confirmation. Use `--dry-run` first on a new project to understand what will be written.
+</Callout>

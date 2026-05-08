@@ -1,0 +1,98 @@
+---
+title: Installation
+description: Install Quell and its optional extras for LLM, GitHub, and MCP support.
+---
+
+# Installation
+
+## Requirements
+
+- Python **3.11** or higher
+- `mutmut` 2.x or 3.x (or Stryker for JavaScript projects)
+- `pytest` for test verification
+
+## Install from PyPI
+
+```bash
+pip install quelltest
+```
+
+<Callout type="info">
+  The PyPI package name is `quelltest`. The CLI command is `quell`.
+</Callout>
+
+## Recommended: use a virtual environment
+
+```bash
+python -m venv .venv
+source .venv/bin/activate      # Linux/macOS
+.venv\Scripts\activate         # Windows
+
+pip install quelltest
+```
+
+Or with `uv` (faster):
+
+```bash
+uv venv
+uv pip install quelltest
+```
+
+## Optional extras
+
+### LLM fallback (Anthropic or OpenAI)
+
+Quell's rule engine handles 9 operators without any LLM. For `UNKNOWN` operators, you can optionally configure a fallback:
+
+```bash
+# No extra needed — anthropic and openai are included in the base install
+export ANTHROPIC_API_KEY=sk-ant-...   # for Claude
+export OPENAI_API_KEY=sk-...          # for GPT-4
+```
+
+### Local LLM (Ollama)
+
+Run without any cloud API key:
+
+```bash
+# Install Ollama: https://ollama.ai
+ollama pull llama3
+
+# Tell Quell to use Ollama
+quell fix --llm ollama
+```
+
+### MCP server (AI agent integration)
+
+```bash
+pip install "quelltest[mcp]"
+```
+
+Exposes Quell tools to Claude Code, Cursor, Devin, and any MCP-compatible agent.
+
+### GitHub App (PR commenting)
+
+```bash
+pip install "quelltest[github]"
+```
+
+Required for running the Quell GitHub App webhook server that posts mutation scores as PR comments.
+
+## Verify installation
+
+```bash
+quell --version
+# quelltest 0.3.0
+
+quell --help
+```
+
+## Windows note
+
+`mutmut` 3.x does **not** run natively on Windows. Use WSL (Windows Subsystem for Linux) or run Quell inside a Linux container. The Quell CLI itself works on Windows — only the `mutmut run` step requires Linux/macOS.
+
+## Updating
+
+```bash
+pip install --upgrade quelltest
+```

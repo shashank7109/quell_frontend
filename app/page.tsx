@@ -92,7 +92,8 @@ export default function Home() {
           <div className="hidden md:flex items-center gap-7 text-sm text-[#555]">
             <Link href="#how-it-works" className="hover:text-white transition-colors">How it works</Link>
             <Link href="#pricing" className="hover:text-white transition-colors">Pricing</Link>
-            <a href="https://github.com/shashank7109/quell" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">Docs</a>
+            <Link href="/docs" className="hover:text-white transition-colors">Docs</Link>
+            <a href="https://github.com/shashank7109/quell" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">GitHub</a>
           </div>
           <div className="flex items-center gap-3">
             <Link href="/auth/sign-in" className="text-sm text-[#555] hover:text-white transition-colors">Sign in</Link>

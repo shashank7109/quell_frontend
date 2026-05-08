@@ -1,0 +1,53 @@
+---
+title: CLI Overview
+description: All quell commands and global options.
+---
+
+# CLI Reference
+
+Quell provides a single entry-point command `quell` with several subcommands.
+
+## Global options
+
+All commands accept these options:
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--root`, `-r` | `.` | Project root directory |
+| `--tool`, `-t` | `mutmut` | Mutation tool (`mutmut` or `stryker`) |
+| `--help` | — | Show help and exit |
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| [`quell scan`](/docs/cli/scan) | List all survived mutants |
+| [`quell fix`](/docs/cli/fix) | Interactively fix one or all mutants |
+| [`quell auto`](/docs/cli/auto) | Non-interactive auto-fix |
+| [`quell ci`](/docs/cli/ci) | CI/CD mode with threshold enforcement |
+| [`quell score`](/docs/cli/score) | Show mutation score per file |
+| [`quell repair`](/docs/cli/repair) | Repair weak AI-generated test suites |
+| [`quell report`](/docs/cli/report) | Show the audit log |
+| [`quell github-comment`](/docs/cli/github-comment) | Post results to a GitHub PR |
+| `quell init` | Add `[tool.quell]` to `pyproject.toml` |
+
+## Getting help
+
+```bash
+quell --help
+quell fix --help
+quell ci --help
+```
+
+## Shell completion
+
+```bash
+# bash
+quell --install-completion bash
+
+# zsh
+quell --install-completion zsh
+
+# fish
+quell --install-completion fish
+```

@@ -1,0 +1,91 @@
+---
+title: quell fix
+description: Interactively generate and write killing tests for survived mutants.
+---
+
+# quell fix
+
+Interactive mode: for each survived mutant, Quell generates a test, verifies it kills the mutant, shows you the result, and asks for confirmation before writing.
+
+## Usage
+
+```bash
+quell fix [OPTIONS]
+```
+
+## Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--tool`, `-t` | `mutmut` | Source tool: `mutmut` or `stryker` |
+| `--root`, `-r` | `.` | Project root directory |
+| `--llm` | `None` | LLM provider for UNKNOWN operators: `anthropic`, `openai`, `ollama` |
+| `--id` | `None` | Fix a specific mutant by ID instead of all |
+
+## Examples
+
+```bash
+# Fix all survived mutants interactively
+quell fix
+
+# Fix a single mutant
+quell fix --id 14
+
+# Fix with LLM fallback for UNKNOWN operators
+quell fix --llm anthropic
+
+# Fix Stryker mutants
+quell fix --tool stryker
+
+# Fix with local Ollama model
+quell fix --llm ollama
+```
+
+## Interactive session
+
+```
+[1/5] BOUNDARY_SHIFT  calculator.py:20
+  Original:  if amount > 0:
+  Mutated:   if amount >= 0:
+
+  Generated test:
+  ─────────────────────────────────────────────────────────────
+  def test_kill_mutant_14_boundary_shift():
+      """Kills mutant 14: BOUNDARY_SHIFT at calculator.py:20"""
+      result = calculate_discount(amount=0)
+      assert result == 0  # exactly 0 must not receive discount
+  ─────────────────────────────────────────────────────────────
+
+  ✓ Original suite passes  (0.42s)
+  ✓ Mutant killed by test  (0.38s)
+
+  Write to tests/test_calculator.py? [y/N/s(skip)/q(quit)]:
+```
+
+### Prompt options
+
+| Key | Action |
+|-----|--------|
+| `y` | Write test to file |
+| `n` | Skip this mutant (same as `s`) |
+| `s` | Skip this mutant |
+| `q` | Quit and stop processing |
+
+## What happens when you press `y`
+
+1. The test function is appended to the test file using libcst (formatting preserved)
+2. The test file is backed up to `.quell/backups/` before writing
+3. The action is recorded in `.quell/audit.jsonl`
+
+## LLM fallback
+
+If an operator is `UNKNOWN` and no `--llm` flag is provided, Quell will skip that mutant with a notice. Pass `--llm anthropic` (or `openai` / `ollama`) to enable generation for unknown operators.
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+quell fix --llm anthropic
+```
+
+<Callout type="tip">
+  For fully automated fixing without prompts, use [`quell auto`](/docs/cli/auto).
+</Callout>

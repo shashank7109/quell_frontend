@@ -1,0 +1,93 @@
+---
+title: Stryker Adapter
+description: Read mutation results from Stryker (JavaScript/TypeScript projects).
+---
+
+# Stryker Adapter
+
+Quell's Stryker adapter reads from Stryker's JSON mutation report. This lets you use Quell with JavaScript and TypeScript projects that use Stryker for mutation testing.
+
+<Callout type="warning">
+  The Stryker adapter reads Stryker's output and generates pytest tests. This is most useful for full-stack projects where Python backend tests need to cover logic validated by Stryker on the frontend, or for Python projects running Stryker via the Python-mutator.
+</Callout>
+
+## Setup
+
+```bash
+# Install Stryker (example: JavaScript)
+npm install --save-dev @stryker-mutator/core
+
+# Run Stryker
+npx stryker run
+```
+
+Stryker writes its report to `reports/mutation/mutation.json` by default.
+
+## Use Quell with Stryker
+
+```bash
+quell scan --tool stryker
+quell fix --tool stryker
+quell ci --tool stryker
+```
+
+## Custom report path
+
+If your Stryker report is in a non-default location:
+
+```bash
+# Override via environment variable
+export QUELL_STRYKER_REPORT=custom/path/mutation.json
+
+quell scan --tool stryker
+```
+
+## Report format
+
+Quell expects Stryker's standard JSON report format:
+
+```json
+{
+  "files": {
+    "src/payments.js": {
+      "mutants": [
+        {
+          "id": "1",
+          "status": "Survived",
+          "location": { "start": {"line": 20, "column": 5} },
+          "mutatorName": "BoundaryMutation",
+          "original": "amount > 0",
+          "replacement": "amount >= 0"
+        }
+      ]
+    }
+  }
+}
+```
+
+Quell maps Stryker's `mutatorName` values to its internal `MutationOperator` enum.
+
+## Stryker → Quell operator mapping
+
+| Stryker mutatorName | Quell operator |
+|---------------------|----------------|
+| `BoundaryMutation` | `BOUNDARY_SHIFT` |
+| `ArithmeticOperator` | `ARITHMETIC_SWAP` |
+| `LogicalOperator` | `LOGICAL_SWAP` |
+| `EqualityOperator` | `COMPARISON_FLIP` |
+| `BlockStatement` | `STATEMENT_REMOVAL` |
+| `ConditionalExpression` | `CONDITION_NEGATE` |
+| `StringLiteral` | `STRING_MUTATION` |
+| other | `UNKNOWN` |
+
+## Stryker configuration
+
+```json
+{
+  "testRunner": "jest",
+  "reporters": ["html", "json"],
+  "jsonReporter": {
+    "fileName": "reports/mutation/mutation.json"
+  }
+}
+```

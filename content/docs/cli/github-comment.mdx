@@ -1,0 +1,94 @@
+---
+title: quell github-comment
+description: Post or update a Quell CI results comment on a GitHub pull request.
+---
+
+# quell github-comment
+
+Posts a formatted mutation score summary as a comment on a GitHub PR. Updates the existing comment on subsequent runs (idempotent — never creates duplicates).
+
+## Usage
+
+```bash
+quell github-comment [OPTIONS]
+```
+
+## Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--repo`, `-r` | required | Repository in `owner/repo` format |
+| `--pr`, `-p` | required | Pull request number |
+| `--token` | `$GITHUB_TOKEN` | GitHub personal access token or App token |
+| `--report` | `.quell/ci-report.json` | Path to CI report JSON |
+| `--root` | `.` | Project root directory |
+
+## Examples
+
+```bash
+# Post comment on PR #42 in myorg/myrepo
+quell github-comment --repo myorg/myrepo --pr 42
+
+# With explicit token
+quell github-comment --repo myorg/myrepo --pr 42 --token ghp_...
+
+# Custom report location
+quell github-comment --repo myorg/myrepo --pr 42 --report /tmp/quell-report.json
+```
+
+## Token setup
+
+The command reads `GITHUB_TOKEN` from the environment. In GitHub Actions, this is available automatically:
+
+```yaml
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+For local use, create a personal access token with `pull_requests: write` scope.
+
+## Comment format
+
+The posted comment looks like this:
+
+```
+<!-- quell-bot -->
+## 🧬 Quell Mutation Report
+
+![Score](https://img.shields.io/badge/mutation%20score-93%25-4c1.svg)
+△ +22% from last run
+
+| File | Killed | Total | Score | Grade |
+|------|--------|-------|-------|-------|
+| calculator.py | 14 | 14 | 100% | ✅ A |
+| payments.py | 11 | 13 | 84% | ✅ B |
+| auth.py | 12 | 18 | 66% | ⚠️ C |
+
+<details>
+<summary>12 verified killing tests available</summary>
+...
+</details>
+
+✅ Threshold passed: 93% ≥ 80%
+
+---
+[quell.build](https://quell.build)
+```
+
+## Idempotency
+
+The comment body contains a hidden HTML marker `<!-- quell-bot -->`. On subsequent pushes, Quell finds the existing comment and updates it (PATCH) instead of creating a new one. Your PR never accumulates multiple Quell comments.
+
+## Use with `quell ci`
+
+The typical CI workflow is:
+
+```bash
+# Step 1: run CI and generate JSON report
+quell ci --diff-only --threshold 0.8 --report json
+
+# Step 2: post/update the PR comment
+quell github-comment --repo $GITHUB_REPOSITORY --pr $PR_NUMBER
+```
+
+See the [GitHub Actions guide](/docs/guides/github-actions) for the full workflow.

@@ -1,0 +1,68 @@
+---
+title: quell report
+description: View the audit log of all Quell actions.
+---
+
+# quell report
+
+Displays the audit log — a record of every test Quell has written, skipped, or flagged. Backed by `.quell/audit.jsonl` (append-only JSON lines).
+
+## Usage
+
+```bash
+quell report [OPTIONS]
+```
+
+## Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--root`, `-r` | `.` | Project root directory |
+| `--limit`, `-n` | `20` | Number of most-recent entries to show |
+
+## Examples
+
+```bash
+# Show last 20 actions
+quell report
+
+# Show last 50 actions
+quell report --limit 50
+
+# Show all actions
+quell report --limit 0
+```
+
+## Output
+
+```
+  Quell Audit Log  (.quell/audit.jsonl)
+
+  Timestamp              Mutant   Action         File                       Test
+  ───────────────────────────────────────────────────────────────────────────────
+  2026-05-08 14:32:01    14       test_written   tests/test_calculator.py   test_kill_mutant_14
+  2026-05-08 14:32:04    27       test_written   tests/test_payments.py     test_kill_mutant_27
+  2026-05-08 14:32:07    31       test_written   tests/test_payments.py     test_kill_mutant_31
+  2026-05-08 14:32:09    42       test_written   tests/test_auth.py         test_kill_mutant_42
+  2026-05-08 14:32:11    51       skipped        —                          —
+  ───────────────────────────────────────────────────────────────────────────────
+  4 written   1 skipped
+```
+
+## Raw log format
+
+The underlying `.quell/audit.jsonl` is a JSON lines file — one JSON object per line:
+
+```json
+{"timestamp": "2026-05-08T14:32:01Z", "mutant_id": "14", "action": "test_written", "file_path": "tests/test_calculator.py", "test_function_name": "test_kill_mutant_14", "verification_status": "verified"}
+{"timestamp": "2026-05-08T14:32:11Z", "mutant_id": "51", "action": "skipped", "file_path": null, "test_function_name": null, "verification_status": "doesnt_kill_mutant"}
+```
+
+## Action types
+
+| Action | Meaning |
+|--------|---------|
+| `test_written` | Test verified and injected into test file |
+| `skipped` | Mutant skipped (equivalent, no LLM, or user choice) |
+| `flagged_equivalent` | Likely equivalent mutant — no test kills it |
+| `verification_failed` | Generated test failed verification |
