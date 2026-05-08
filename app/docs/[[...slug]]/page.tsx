@@ -7,20 +7,21 @@ import { components } from "@/components/docs/MdxComponents";
 import Link from "next/link";
 import { ChevronRight, ChevronLeft } from "lucide-react";
 
+// Next.js 15: params is a Promise
 interface Props {
-  params: { slug?: string[] };
+  params: Promise<{ slug?: string[] }>;
 }
 
 export async function generateStaticParams() {
   const slugs = getAllDocSlugs();
   return [
-    { slug: undefined },
+    { slug: [] },
     ...slugs.map((slug) => ({ slug })),
   ];
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const slug = params.slug ?? [];
+  const { slug = [] } = await params;
   const page = getDocPage(slug);
   if (!page) return {};
   return {
@@ -30,9 +31,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-
-export default function DocsPage({ params }: Props) {
-  const slug = params.slug ?? [];
+export default async function DocsPage({ params }: Props) {
+  const { slug = [] } = await params;
   const page = getDocPage(slug);
   if (!page) notFound();
 
