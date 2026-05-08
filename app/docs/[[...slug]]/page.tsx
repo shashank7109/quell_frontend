@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { MDXRemote } from "next-mdx-remote/rsc";
 import remarkGfm from "remark-gfm";
-import { getDocPage, getAllDocSlugs, NAV } from "@/lib/docs";
+import { getDocPage, getAllDocSlugs, flattenNav } from "@/lib/docs";
 import { components } from "@/components/docs/MdxComponents";
 import Link from "next/link";
 import { ChevronRight, ChevronLeft } from "lucide-react";
@@ -30,17 +30,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-function flattenNav() {
-  const pages: { title: string; href: string }[] = [];
-  function walk(items: typeof NAV) {
-    for (const item of items) {
-      if (item.href) pages.push({ title: item.title, href: item.href });
-      if (item.items) walk(item.items);
-    }
-  }
-  walk(NAV);
-  return pages;
-}
 
 export default function DocsPage({ params }: Props) {
   const slug = params.slug ?? [];

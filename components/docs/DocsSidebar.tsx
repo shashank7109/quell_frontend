@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { NAV, NavItem } from "@/lib/docs";
+import { NAV, NavItem } from "@/lib/docs-nav";
 import { ChevronRight } from "lucide-react";
 
 function NavGroup({ item }: { item: NavItem }) {
