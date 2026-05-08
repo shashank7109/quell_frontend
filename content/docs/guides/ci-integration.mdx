@@ -1,6 +1,6 @@
 ---
 title: CI/CD Integration
-description: Integrate Quell into your CI pipeline to enforce mutation score thresholds on every pull request.
+description: Integrate Quell into your CI pipeline to enforce requirement coverage thresholds on every pull request.
 ---
 
 # CI/CD Integration
@@ -11,10 +11,11 @@ Quell's `ci` command is designed for automated pipelines. This guide covers the 
 
 The recommended PR workflow is:
 
-1. Run `mutmut` only on **changed lines** (`--diff-only`) — keeps CI under 3 minutes
-2. Auto-fix survivors with `quell ci`
-3. Fail the build if score is below your threshold
-4. Post results as a PR comment
+1. Run `quell ci` on your source directory
+2. Fail the build if coverage is below your threshold
+3. Optionally run `quell check --fix` to auto-generate tests for gaps
+
+No mutation testing tool required. Quell reads your specs directly.
 
 ## GitHub Actions
 
@@ -24,17 +25,13 @@ See the dedicated [GitHub Actions guide](/docs/guides/github-actions) for a comp
 
 ```yaml
 # .gitlab-ci.yml
-mutation-testing:
+quell:
   stage: test
   image: python:3.11
   script:
-    - pip install mutmut quelltest
-    - mutmut run
-    - quell ci --threshold 0.75 --report json
-  artifacts:
-    paths:
-      - .quell/ci-report.json
-    when: always
+    - pip install quelltest
+    - pip install -e ".[dev]"
+    - quell ci src/ --threshold 0.75
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 ```
@@ -44,22 +41,17 @@ mutation-testing:
 ```yaml
 # .circleci/config.yml
 jobs:
-  mutation-test:
+  quell:
     docker:
       - image: cimg/python:3.11
     steps:
       - checkout
       - run:
           name: Install deps
-          command: pip install mutmut quelltest
-      - run:
-          name: Run mutation testing
-          command: mutmut run
+          command: pip install quelltest && pip install -e ".[dev]"
       - run:
           name: Quell CI
-          command: quell ci --diff-only --threshold 0.75
-      - store_artifacts:
-          path: .quell/
+          command: quell ci src/ --threshold 0.75
 ```
 
 ## Recommended thresholds
@@ -73,37 +65,16 @@ jobs:
 
 Start low and ratchet up as your team builds the habit.
 
-## Caching mutmut results
+## Performance
 
-The `.mutmut-cache` SQLite file can be cached between runs:
-
-```yaml
-# GitHub Actions example
-- uses: actions/cache@v4
-  with:
-    path: .mutmut-cache
-    key: mutmut-${{ runner.os }}-${{ hashFiles('**/*.py') }}
-    restore-keys: |
-      mutmut-${{ runner.os }}-
-```
-
-When the cache is warm and no Python files changed, `mutmut run` is a no-op.
-
-## Performance tips
-
-| Tip | Impact |
-|-----|--------|
-| Use `--diff-only` on PR builds | 10x faster (2–3 min vs 20–30 min) |
-| Cache `.mutmut-cache` | Skips unchanged files on subsequent runs |
-| Run full `quell ci` only on `main` push | Keeps PR feedback fast |
-| Use `--report json` to decouple report from post | More resilient pipelines |
+`quell ci` uses an AST-based coverage checker — no test execution required for the scan phase. Even large codebases complete in seconds.
 
 ## Exit codes
 
 Your CI pipeline should treat Quell's exit code as the gate:
 
 ```bash
-quell ci --threshold 0.8
+quell ci src/ --threshold 0.8
 echo "Exit code: $?"
-# 0 = passed, 1 = below threshold, 2 = no cache, 3 = error
+# 0 = passed, 1 = below threshold
 ```

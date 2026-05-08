@@ -1,0 +1,105 @@
+---
+title: Prove Your First Requirement
+description: A hands-on walkthrough of using Quell to prove a docstring requirement.
+---
+
+# Prove Your First Requirement
+
+This is a hands-on tutorial. We'll create a small Python module with a docstring, scan it with Quell, and generate a verified test that proves the requirement.
+
+## Setup
+
+```bash
+mkdir quell-demo && cd quell-demo
+python -m venv .venv && source .venv/bin/activate
+pip install pytest quelltest
+```
+
+## Create the source module
+
+```python
+# payments.py
+def apply_discount(price: float, threshold: float = 100.0) -> float:
+    """
+    Apply a 10% discount if price exceeds threshold.
+
+    Args:
+        price: Must be greater than 0.
+        threshold: Minimum price for the discount to apply.
+
+    Returns:
+        The final price after discount.
+
+    Raises:
+        ValueError: If price is zero or negative.
+    """
+    if price <= 0:
+        raise ValueError("Price must be positive")
+    if price > threshold:
+        return price * 0.9
+    return price
+```
+
+## Scan with Quell
+
+```bash
+quell check payments.py
+```
+
+```
+Requirements — payments.py
+Function          Kind         Description                           Covered
+apply_discount    MUST_RAISE   ValueError: If price is zero or ne... NO
+apply_discount    MUST_RETURN  The final price after discount         NO
+apply_discount    BOUNDARY     price: Must be greater than 0         NO
+
+Score: 0% (0/3 covered)
+3 gap(s) found. Run with --fix to generate tests.
+```
+
+Quell found three requirements from the docstring — all uncovered.
+
+## Generate verified tests
+
+```bash
+quell check payments.py --fix
+```
+
+For each gap, Quell:
+1. Generates a candidate test
+2. Runs it against the original code (must PASS)
+3. Injects a violation into the source (e.g., comments out the `raise`)
+4. Runs the test again (must FAIL)
+5. Restores the source file
+6. Writes the test only if both phases passed
+
+## Why this matters
+
+Consider the `MUST_RAISE` requirement: "ValueError if price is zero or negative."
+
+A test that only calls `apply_discount(-1)` and checks `result < 0` would appear to cover the requirement — but it doesn't actually prove the exception is raised.
+
+Quell's verification injects the violation (removes the `raise`) and runs the test again. A test that doesn't use `pytest.raises` will pass even on violated code and get discarded.
+
+## Check your score
+
+```bash
+quell prove payments.py
+```
+
+```
+ Quell Score
+ 100% of requirements proven for payments.py
+```
+
+All three requirements are now proven by verified tests.
+
+## Reproduce a bug
+
+If someone files a bug: "discount applies when price exactly equals threshold":
+
+```bash
+quell reproduce "discount applies when price exactly equals threshold" --file payments.py
+```
+
+Quell generates a failing test that demonstrates the bug. When you fix the code, the test passes.

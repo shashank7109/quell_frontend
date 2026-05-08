@@ -24,38 +24,55 @@ quell-mcp
 
 | Tool | Description |
 |------|-------------|
-| `verify_test` | Check if a test kills mutations in a source file |
-| `get_survivors` | List all survived mutants for a file |
-| `generate_killing_test` | Generate a verified killing test for a mutant |
-| `get_quell_score` | Get mutation score for project or file |
+| `check_requirements` | Scan a file for requirement gaps |
+| `reproduce_bug` | Convert a bug description to a failing test |
+| `prove_coverage` | Get requirement coverage score for a file |
+| `get_project_score` | Get project-wide Quell Score |
 
 For full usage examples and agent configuration, see [AI Agents guide](/docs/guides/ai-agents).
 
 ## MCP tool schemas
 
-### `verify_test`
+### `check_requirements`
 
 ```json
 {
-  "name": "verify_test",
-  "description": "Verify a test kills mutations in a source file",
+  "name": "check_requirements",
+  "description": "Scan a file or directory for uncovered requirements",
   "inputSchema": {
     "type": "object",
     "properties": {
-      "test_code": { "type": "string", "description": "pytest function as a string" },
-      "source_file": { "type": "string", "description": "path to the source file" }
+      "target": { "type": "string", "description": "file or directory path" },
+      "fix": { "type": "boolean", "description": "generate verified tests for gaps" }
     },
-    "required": ["test_code", "source_file"]
+    "required": ["target"]
   }
 }
 ```
 
-### `get_quell_score`
+### `reproduce_bug`
 
 ```json
 {
-  "name": "get_quell_score",
-  "description": "Get mutation score for project or a single file",
+  "name": "reproduce_bug",
+  "description": "Convert a plain-English bug description into a verified failing test",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "description": { "type": "string", "description": "bug description in plain English" },
+      "file": { "type": "string", "description": "optional target source file" }
+    },
+    "required": ["description"]
+  }
+}
+```
+
+### `get_project_score`
+
+```json
+{
+  "name": "get_project_score",
+  "description": "Get requirement coverage score for the project or a single file",
   "inputSchema": {
     "type": "object",
     "properties": {

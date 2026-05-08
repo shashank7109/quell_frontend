@@ -1,6 +1,6 @@
 ---
 title: Installation
-description: Install Quell and its optional extras for LLM, GitHub, and MCP support.
+description: Install Quell and its optional extras for LLM, MCP, and local inference support.
 ---
 
 # Installation
@@ -8,8 +8,9 @@ description: Install Quell and its optional extras for LLM, GitHub, and MCP supp
 ## Requirements
 
 - Python **3.11** or higher
-- `mutmut` 2.x or 3.x (or Stryker for JavaScript projects)
-- `pytest` for test verification
+- `pytest` (for test verification — installed automatically)
+
+No mutation testing tool required. Quell reads specs, not mutation results.
 
 ## Install from PyPI
 
@@ -40,12 +41,19 @@ uv pip install quelltest
 
 ## Optional extras
 
-### LLM fallback (Anthropic or OpenAI)
-
-Quell's rule engine handles 9 operators without any LLM. For `UNKNOWN` operators, you can optionally configure a fallback:
+### MCP server (AI agent integration)
 
 ```bash
-# No extra needed — anthropic and openai are included in the base install
+pip install "quelltest[mcp]"
+```
+
+Exposes Quell tools to Claude Code, Cursor, Devin, and any MCP-compatible agent.
+
+### LLM configuration
+
+Anthropic and OpenAI clients are included in the base install. Set your key to enable LLM-powered analysis of complex unstructured specs:
+
+```bash
 export ANTHROPIC_API_KEY=sk-ant-...   # for Claude
 export OPENAI_API_KEY=sk-...          # for GPT-4
 ```
@@ -56,43 +64,27 @@ Run without any cloud API key:
 
 ```bash
 # Install Ollama: https://ollama.ai
-ollama pull llama3
+ollama pull codellama
 
-# Tell Quell to use Ollama
-quell fix --llm ollama
+# Tell Quell to use Ollama in pyproject.toml:
+# llm_provider = "ollama"
 ```
-
-### MCP server (AI agent integration)
-
-```bash
-pip install "quelltest[mcp]"
-```
-
-Exposes Quell tools to Claude Code, Cursor, Devin, and any MCP-compatible agent.
-
-### GitHub App (PR commenting)
-
-```bash
-pip install "quelltest[github]"
-```
-
-Required for running the Quell GitHub App webhook server that posts mutation scores as PR comments.
 
 ## Verify installation
 
 ```bash
 quell --version
-# quelltest 0.3.0
+# quelltest 0.4.0
 
 quell --help
 ```
-
-## Windows note
-
-`mutmut` 3.x does **not** run natively on Windows. Use WSL (Windows Subsystem for Linux) or run Quell inside a Linux container. The Quell CLI itself works on Windows — only the `mutmut run` step requires Linux/macOS.
 
 ## Updating
 
 ```bash
 pip install --upgrade quelltest
 ```
+
+## Windows note
+
+Quell runs natively on Windows. The CLI, verification engine, and AST-based spec readers all work without WSL.

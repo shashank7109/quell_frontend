@@ -13,29 +13,25 @@ All commands accept these options:
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--root`, `-r` | `.` | Project root directory |
-| `--tool`, `-t` | `mutmut` | Mutation tool (`mutmut` or `stryker`) |
+| `--root` | `.` | Project root directory |
 | `--help` | — | Show help and exit |
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
-| [`quell scan`](/docs/cli/scan) | List all survived mutants |
-| [`quell fix`](/docs/cli/fix) | Interactively fix one or all mutants |
-| [`quell auto`](/docs/cli/auto) | Non-interactive auto-fix |
-| [`quell ci`](/docs/cli/ci) | CI/CD mode with threshold enforcement |
-| [`quell score`](/docs/cli/score) | Show mutation score per file |
-| [`quell repair`](/docs/cli/repair) | Repair weak AI-generated test suites |
-| [`quell report`](/docs/cli/report) | Show the audit log |
-| [`quell github-comment`](/docs/cli/github-comment) | Post results to a GitHub PR |
-| `quell init` | Add `[tool.quell]` to `pyproject.toml` |
+| [`quell check`](/docs/cli/check) | Scan specs, find requirement gaps, optionally generate verified tests |
+| [`quell reproduce`](/docs/cli/reproduce) | Convert a bug description into a verified failing test |
+| [`quell prove`](/docs/cli/prove) | Show requirement coverage score for a file or function |
+| [`quell score`](/docs/cli/score) | Show project-wide Quell Score and optional SVG badge |
+| [`quell ci`](/docs/cli/ci) | CI mode: check requirements and exit 1 if below threshold |
+| [`quell init`](/docs/cli/init) | Add `[tool.quell]` to `pyproject.toml` |
 
 ## Getting help
 
 ```bash
 quell --help
-quell fix --help
+quell check --help
 quell ci --help
 ```
 

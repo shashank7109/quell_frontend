@@ -22,6 +22,10 @@ llm_model = "claude-sonnet-4-5"
 max_verification_attempts = 3
 verification_timeout_seconds = 30
 auto_write = false
+enable_docstring = true
+enable_types = true
+enable_mutations = false
+score_threshold = 0.0
 ```
 
 ## Full reference
@@ -39,10 +43,14 @@ verification_timeout_seconds = 30     # subprocess timeout per test run
 
 # Writing behaviour
 auto_write = false                    # skip confirmation prompt if true
-test_file_pattern = "tests/test_{source_file}.py"
 
-# Exclusions
-exclude_operators = []               # e.g. ["UNKNOWN", "STRING_MUTATION"]
+# Spec sources
+enable_docstring = true               # read docstrings for requirements
+enable_types = true                   # read Pydantic models and type annotations
+enable_mutations = false              # read mutmut/Stryker results (optional)
+
+# CI gate
+score_threshold = 0.0                 # minimum score for quell ci
 
 # Paths
 audit_log_path = ".quell/audit.jsonl"
@@ -53,7 +61,7 @@ backup_dir = ".quell/backups"
 
 ### `llm_provider`
 
-Which LLM to use for `UNKNOWN` operators. Quell never calls the LLM for operators it handles with rule-based generation.
+Which LLM to use for complex or unstructured specs (e.g., bug descriptions). Quell never calls the LLM for specs it can parse directly (docstrings, Pydantic models).
 
 | Value | Requires |
 |-------|---------|
@@ -67,9 +75,9 @@ Model name passed to the provider. Defaults:
 
 | Provider | Default model |
 |----------|---------------|
-| `anthropic` | `claude-sonnet-4-6` |
+| `anthropic` | `claude-sonnet-4-5` |
 | `openai` | `gpt-4o` |
-| `ollama` | `llama3` |
+| `ollama` | `codellama` |
 
 ### `max_verification_attempts`
 
@@ -81,32 +89,15 @@ Maximum time (in seconds) for a single pytest subprocess run. If your test suite
 
 ### `auto_write`
 
-If `true`, Quell writes verified tests without asking for confirmation. Same as passing `--auto` to `quell fix`. Useful for automated scripts.
+If `true`, Quell writes verified tests without asking for confirmation. Useful for automated scripts and CI.
 
-### `test_file_pattern`
+### `enable_docstring` / `enable_types`
 
-Template for where to write tests for a given source file.
+Which spec readers to activate. Both are `true` by default. Set `enable_types = false` if your project doesn't use Pydantic.
 
-```toml
-# Default: tests/test_payments.py for src/payments.py
-test_file_pattern = "tests/test_{source_file}.py"
+### `score_threshold`
 
-# For src/ layout
-test_file_pattern = "tests/unit/test_{source_file}.py"
-
-# Flat layout
-test_file_pattern = "test_{source_file}.py"
-```
-
-### `exclude_operators`
-
-Skip specific mutation operators entirely.
-
-```toml
-exclude_operators = ["UNKNOWN", "STRING_MUTATION"]
-```
-
-Useful if you don't have an LLM configured and don't want to see `UNKNOWN` in every report.
+Minimum acceptable score for `quell ci`. Overridden by `--threshold` on the CLI.
 
 ## Monorepo setup
 
@@ -126,6 +117,6 @@ my-monorepo/
 Run with:
 
 ```bash
-quell ci --root packages/payments
-quell ci --root packages/auth
+quell ci src/ --root packages/payments
+quell ci src/ --root packages/auth
 ```

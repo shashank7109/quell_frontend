@@ -1,0 +1,69 @@
+---
+title: quell reproduce
+description: Convert a bug description in plain English into a verified failing test.
+---
+
+# quell reproduce
+
+Takes a plain-English bug description and uses an LLM to generate a `pytest` test that reproduces it. The test is verified to currently **fail** (confirming the bug exists) before being written to disk.
+
+## Usage
+
+```bash
+quell reproduce DESCRIPTION [OPTIONS]
+```
+
+## Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `DESCRIPTION` | Bug description in plain English |
+
+## Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--file` | `None` | Target source file to focus on |
+| `--root` | `.` | Project root directory |
+
+## Examples
+
+```bash
+# Reproduce a bug from a description
+quell reproduce "payment accepts zero amount silently"
+
+# Focus on a specific file
+quell reproduce "discount applies when price equals threshold" --file src/calculator.py
+```
+
+## How it works
+
+1. The description is sent to your configured LLM provider along with relevant source context.
+2. The LLM generates a `pytest` test that exercises the described behavior.
+3. Quell verifies the test currently **fails** (confirming the bug is present).
+4. The failing test is written to your test file.
+
+The test will **pass** once the bug is fixed — giving you a clear signal that your fix is complete.
+
+## Requires LLM
+
+`quell reproduce` always uses an LLM because bug descriptions are unstructured natural language. Configure your provider in `pyproject.toml`:
+
+```toml
+[tool.quell]
+llm_provider = "anthropic"   # "anthropic" | "openai" | "ollama"
+llm_model = "claude-sonnet-4-6"
+```
+
+And set your key:
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+```
+
+## Exit codes
+
+| Code | Meaning |
+|------|---------|
+| `0` | Test generated and written |
+| `1` | Could not generate a verified reproduction test |

@@ -1,0 +1,80 @@
+---
+title: quell check
+description: Scan specs, find requirement gaps, and optionally generate verified tests.
+---
+
+# quell check
+
+Reads docstrings, Pydantic models, and type annotations from a file or directory, extracts every testable requirement, checks which ones have no test, and optionally generates a verified test for each gap.
+
+## Usage
+
+```bash
+quell check [TARGET] [OPTIONS]
+```
+
+## Arguments
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `TARGET` | `.` | File or directory to scan |
+
+## Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--fix` | `False` | Generate and write verified tests for all gaps |
+| `--sources` | `docstring,type` | Comma-separated spec sources to use |
+| `--root` | `.` | Project root directory |
+
+## Examples
+
+```bash
+# Scan a file and show gaps
+quell check src/payments.py
+
+# Scan a directory
+quell check src/
+
+# Generate and write verified tests for all gaps
+quell check src/payments.py --fix
+
+# Use only docstring specs
+quell check src/ --sources docstring
+
+# Use both docstring and type specs (default)
+quell check src/ --sources docstring,type
+```
+
+## Console output
+
+```
+Requirements — src/payments.py
+Function              Kind         Description                        Covered
+process_payment       MUST_RAISE   ValueError: If amount is zero...   NO
+process_payment       MUST_RETURN  dict with transaction_id, statu... YES
+process_payment       BOUNDARY     Amount must be greater than 0      NO
+PaymentRequest        ENUM_VALID   currency: USD, EUR, GBP            NO
+PaymentRequest        BOUNDARY     amount: gt=0                       YES
+
+Score: 40% (2/5 covered)
+3 gap(s) found. Run with --fix to generate tests.
+```
+
+## The `--fix` flag
+
+When `--fix` is passed, Quell generates a candidate test for each uncovered requirement and verifies it in two phases:
+
+1. The test must **PASS** on the original (correct) code.
+2. The test must **FAIL** on code that violates the requirement.
+
+Only tests that pass both phases are written to disk.
+
+## Spec sources
+
+| Source | What it reads |
+|--------|---------------|
+| `docstring` | Google-style Raises:, Returns:, and Args: blocks; boundary phrases |
+| `type` | Pydantic Field validators; Literal type annotations |
+
+Use `--sources` to restrict which readers run. By default both `docstring` and `type` are active.

@@ -1,11 +1,11 @@
 ---
 title: Quickstart
-description: Kill your first survived mutant in under 5 minutes.
+description: Prove your first requirement in under 5 minutes.
 ---
 
 # Quickstart
 
-This guide assumes you already have `mutmut` installed and have run it at least once. If not, see [Installation](/docs/installation) for the full setup.
+This guide assumes you have a Python project with docstrings or Pydantic models. If not, the example below creates one from scratch.
 
 ## 1. Install Quell
 
@@ -13,87 +13,101 @@ This guide assumes you already have `mutmut` installed and have run it at least 
 pip install quelltest
 ```
 
-## 2. Run mutmut (if you haven't already)
+## 2. Add a spec to your code
+
+If you don't have one already, add a docstring or a Pydantic model:
+
+```python
+# payments.py
+from pydantic import BaseModel, Field
+from typing import Literal
+
+class PaymentRequest(BaseModel):
+    amount: float = Field(gt=0)
+    currency: Literal["USD", "EUR", "GBP"]
+
+def process_payment(request: PaymentRequest) -> dict:
+    """
+    Process a payment transaction.
+
+    Args:
+        request: Amount must be greater than 0. Currency must be one of: USD, EUR, GBP.
+
+    Returns:
+        dict with transaction_id, status, amount.
+
+    Raises:
+        ValueError: If amount is zero or negative.
+    """
+    if request.amount <= 0:
+        raise ValueError("Amount must be positive")
+    return {"transaction_id": "txn_123", "status": "ok", "amount": request.amount}
+```
+
+## 3. Scan for requirement gaps
 
 ```bash
-mutmut run
+quell check payments.py
 ```
 
-This populates `.mutmut-cache` in your project root. On a typical project this takes 5–30 minutes depending on size.
+Quell reads the docstring and the Pydantic model, extracts every requirement, and shows which ones have no test:
 
-## 3. See what survived
+```
+Requirements — payments.py
+Function              Kind         Description                        Covered
+process_payment       MUST_RAISE   ValueError: If amount is zero...   NO
+process_payment       MUST_RETURN  dict with transaction_id, statu... NO
+process_payment       BOUNDARY     Amount must be greater than 0      NO
+PaymentRequest        ENUM_VALID   currency: USD, EUR, GBP            NO
+PaymentRequest        BOUNDARY     amount: gt=0                       NO
+
+Score: 0% (0/5 covered)
+5 gap(s) found. Run with --fix to generate tests.
+```
+
+## 4. Generate and write verified tests
 
 ```bash
-quell scan
+quell check payments.py --fix
 ```
 
-You'll see a table like this:
+For each gap, Quell generates a candidate test, proves it passes on correct code AND fails on violated code, then writes only the verified tests.
 
-```
-┌──────┬──────────────────┬──────┬─────────────────┬─────────────────────────┐
-│ ID   │ File             │ Line │ Operator        │ Mutation                │
-├──────┼──────────────────┼──────┼─────────────────┼─────────────────────────┤
-│ 14   │ calculator.py    │ 20   │ BOUNDARY_SHIFT  │ amount > 0 → amount >= 0│
-│ 27   │ payments.py      │ 41   │ ARITHMETIC_SWAP │ total + tax → total - tax│
-│ 31   │ payments.py      │ 55   │ RETURN_MUTATION │ return result → return None│
-└──────┴──────────────────┴──────┴─────────────────┴─────────────────────────┘
-3 survived mutants
-```
-
-## 4. Fix one mutant interactively
+## 5. Reproduce a bug from a description
 
 ```bash
-quell fix --id 14
+quell reproduce "payment accepts zero amount silently"
 ```
 
-Quell will:
-1. Generate a pytest assertion for the `BOUNDARY_SHIFT` mutation
-2. Run the test against the original code (must pass)
-3. Run the test against the mutated code (must fail)
-4. Show you the result and ask to confirm
+Quell converts the plain-English bug description into a failing test that you can use to drive a fix.
 
-```
-  Generated test:
-  ─────────────────────────────────────────────────────────────
-  def test_kill_mutant_14():
-      result = calculate_discount(amount=0)
-      assert result == 0
-  ─────────────────────────────────────────────────────────────
-  ✓ Original suite passes
-  ✓ Mutant killed by test
-
-  Write to tests/test_calculator.py? [y/n]:
-```
-
-Press `y` and the test is injected into your test file.
-
-## 5. Fix all survivors automatically
+## 6. Check coverage for a specific file
 
 ```bash
-quell auto
+quell prove payments.py
 ```
 
-Quell runs the full generate → verify → write loop for every survived mutant, no prompts.
+```
+80% of requirements proven for payments.py
+```
 
-<Callout type="info">
-  Use `--dry-run` to preview what would be written without touching any files.
-</Callout>
-
-## 6. Check your mutation score
+## 7. Project-wide score
 
 ```bash
-quell score
+quell score --badge
 ```
 
 ```
-  calculator.py    14 / 14  killed   100%  A
-  payments.py      11 / 13  killed    84%  B
-  ─────────────────────────────────────────
-  Overall          25 / 27  killed    92%  A
+File          Requirements   Covered   Score   Grade
+payments.py            5         4     80%       B
+auth.py                8         7     87%       A
+
+Project Score: 84%
+Badge written to .quell/badge.svg
 ```
 
 ## Next steps
 
 - Set up [CI/CD integration](/docs/guides/ci-integration) to run Quell on every pull request
-- Add [LLM fallback](/docs/configuration/llm-providers) for `UNKNOWN` operators
+- Configure [LLM providers](/docs/configuration/llm-providers) for complex unstructured specs
 - Use the [Python SDK](/docs/sdk) to integrate Quell into your own tooling

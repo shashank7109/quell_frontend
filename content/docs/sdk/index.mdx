@@ -20,13 +20,16 @@ from quell import Quell
 
 q = Quell()
 
-# Get mutation score
-score = q.get_score()
-print(f"Score: {score.percentage}%  Grade: {score.grade}")
+# Find requirement gaps
+result = q.check("src/")
+print(f"Score: {result.score:.0%} | Gaps: {len(result.uncovered)}")
 
-# Auto-fix all survived mutants
-result = q.fix_all(auto_write=True)
-print(f"Fixed: {result.fixed}  Score: {result.score_before:.0%} → {result.score_after:.0%}")
+# Reproduce a bug
+q.reproduce("payment accepts zero amount silently")
+
+# Project score
+score = q.score()
+print(f"Project: {score.percentage}%")
 ```
 
 ## Constructor
@@ -36,7 +39,6 @@ Quell(
     llm: str = "anthropic",
     model: str | None = None,
     project_root: Path = Path("."),
-    local: bool = False,
 )
 ```
 
@@ -45,160 +47,128 @@ Quell(
 | `llm` | `"anthropic"` | LLM provider: `"anthropic"`, `"openai"`, `"ollama"` |
 | `model` | `None` | Model name override (e.g. `"claude-sonnet-4-6"`) |
 | `project_root` | `Path(".")` | Root directory of the project |
-| `local` | `False` | Force Ollama (offline mode) |
 
 ## Methods
 
-### `get_score`
+### `check`
 
 ```python
-def get_score(path: str | Path | None = None) -> ScoreResult
+def check(
+    target: str | Path,
+    sources: list[str] = ["docstring", "type"],
+    fix: bool = False,
+) -> CheckResult
 ```
 
-Get mutation score for the whole project or a single file.
+Scan specs, find requirement gaps, optionally generate verified tests.
 
 ```python
-# Project-wide score
-score = q.get_score()
-print(score.percentage)     # 93
-print(score.grade)          # "A"
-print(score.total_mutants)  # 53
-print(score.killed_mutants) # 49
-print(score.by_file)        # {"calculator.py": {"score": 1.0, "grade": "A"}, ...}
+result = q.check("src/payments.py")
+print(f"Score: {result.score:.0%}")
+print(f"Covered: {len(result.covered)}/{len(result.requirements)}")
 
-# Per-file score
-score = q.get_score("payments.py")
+for req in result.uncovered:
+    print(f"  Gap: {req.target_function} — {req.description}")
 ```
 
-### `fix_all`
+With `fix=True`, Quell generates a verified test for each gap and writes it to the test file:
 
 ```python
-def fix_all(
-    source: str = "mutmut",
-    auto_write: bool = False,
-    threshold: float = 0.0,
-) -> FixResult
+result = q.check("src/", fix=True)
 ```
 
-Generate + verify + write tests for all survived mutants.
+### `reproduce`
 
 ```python
-result = q.fix_all(auto_write=True, threshold=0.8)
-print(result.fixed)       # 12
-print(result.skipped)     # 1
-print(result.score_delta) # 0.22  (22% improvement)
-print(result.score_after) # 0.93
+def reproduce(
+    description: str,
+    file: str | None = None,
+) -> bool
 ```
 
-| Parameter | Description |
-|-----------|-------------|
-| `source` | Mutation tool: `"mutmut"` or `"stryker"` |
-| `auto_write` | Write without confirmation prompts |
-| `threshold` | Raise `ThresholdNotMet` if score < threshold after fixing |
-
-### `verify_test`
+Convert a bug description into a verified failing test.
 
 ```python
-def verify_test(
-    test_code: str,
-    source_file: str | Path,
-) -> VerifyResult
+written = q.reproduce("payment accepts zero amount silently")
+if written:
+    print("Bug reproduction test written — fix the code, then run tests.")
 ```
 
-Verify that a test kills mutations in a source file.
+Returns `True` if a verified test was written, `False` otherwise.
+
+### `prove`
 
 ```python
-test_code = """
-def test_boundary():
-    from calculator import apply_discount
-    assert apply_discount(100.0, 100.0) == 100.0
-"""
-
-result = q.verify_test(test_code, "calculator.py")
-print(result.verified)       # True
-print(result.kills_mutants)  # 3
-print(result.explanation)    # "Test kills BOUNDARY_SHIFT at line 3"
+def prove(
+    file: str | Path,
+    function: str | None = None,
+) -> float
 ```
 
-### `repair`
+Return the requirement coverage score (0.0–1.0) for a file or function.
 
 ```python
-def repair(
-    test_dir: Path,
-    source_dir: Path,
-) -> RepairResult
+score = q.prove("src/payments.py")
+print(f"Coverage: {score:.0%}")
+
+# For a specific function
+score = q.prove("src/payments.py", function="process_payment")
 ```
 
-Repair a weak test suite (typically AI-generated).
+### `score`
 
 ```python
-result = q.repair(
-    test_dir=Path("tests/"),
-    source_dir=Path("src/"),
-)
-print(result.fixed)       # 22
-print(result.score_delta) # 0.31  (31% improvement)
+def score() -> ProjectScore
+```
+
+Return the project-wide requirement coverage score.
+
+```python
+project_score = q.score()
+print(f"Project: {project_score.percentage}%")
+
+for fs in project_score.files:
+    print(f"  {fs.file_path.name}: {fs.percentage}% ({fs.grade})")
 ```
 
 ## Return types
 
-### `ScoreResult`
+### `CheckResult`
 
 ```python
-@dataclass
-class ScoreResult:
-    total: float          # 0.0–1.0
-    percentage: int       # 0–100
-    grade: str            # A/B/C/F
-    total_mutants: int
-    killed_mutants: int
-    survived_mutants: int
-    by_file: dict[str, dict]
+class CheckResult(BaseModel):
+    requirements: list[Requirement]
+    covered: list[Requirement]
+    uncovered: list[Requirement]
+    score: float                    # 0.0–1.0
 ```
 
-### `FixResult`
+### `ProjectScore`
 
 ```python
-@dataclass
-class FixResult:
-    fixed: int
-    skipped: int
-    failed: int
-    score_before: float
-    score_after: float
+class ProjectScore(BaseModel):
+    files: list[FileScore]
+    generated_at: datetime
 
     @property
-    def score_delta(self) -> float: ...
+    def total_score(self) -> float: ...   # 0.0–1.0
+    @property
+    def percentage(self) -> int: ...      # 0–100
 ```
 
-### `VerifyResult`
+### `FileScore`
 
 ```python
-@dataclass
-class VerifyResult:
-    verified: bool
-    status: str           # VerificationStatus value
-    kills_mutants: int
-    score_delta: float
-    explanation: str
-    error_message: str | None
-```
-
-### `RepairResult`
-
-```python
-@dataclass
-class RepairResult:
-    fixed: int
-    skipped: int
-    failed: int
-    score_before: float
-    score_after: float
+class FileScore(BaseModel):
+    file_path: Path
+    total_requirements: int
+    covered_requirements: int
+    quell_score: float              # 0.0–1.0
 
     @property
-    def score_delta(self) -> float: ...
+    def percentage(self) -> int: ...
     @property
-    def total(self) -> int: ...
+    def grade(self) -> str: ...     # A/B/C/F
 ```
 
 ## Complete example
@@ -216,22 +186,16 @@ q = Quell(
     project_root=Path("/my/project"),
 )
 
-# Check current state
-score = q.get_score()
-print(f"Before: {score.percentage}% ({score.survived_mutants} survived)")
+# Check current coverage
+result = q.check("src/")
+print(f"Score: {result.score:.0%} ({len(result.uncovered)} gaps)")
 
-# Fix everything
-result = q.fix_all(auto_write=True)
-print(f"After: {result.score_after:.0%} ({result.fixed} tests written)")
+# Auto-fix all gaps
+result = q.check("src/", fix=True)
 
-# Verify a hand-written test
-my_test = '''
-def test_exact_boundary():
-    from payments import process_payment
-    # Amount at exactly the fee threshold
-    result = process_payment(amount=50.0)
-    assert result["fee"] == 0.0
-'''
-v = q.verify_test(my_test, "payments.py")
-print(f"Test verified: {v.verified} (kills {v.kills_mutants} mutants)")
+# Check score after fix
+project_score = q.score()
+print(f"Project: {project_score.percentage}%")
+for fs in project_score.files:
+    print(f"  {fs.file_path.name}: {fs.percentage}% {fs.grade}")
 ```

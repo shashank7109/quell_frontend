@@ -5,49 +5,54 @@ description: Release history for the quelltest package.
 
 # Changelog
 
+## v0.4.0 — 2026-05
+
+**Spec-first architecture — reads requirements, not mutants**
+
+This release is a full architectural pivot. Quell no longer requires a mutation testing tool. Instead, it reads specifications that already exist in your codebase.
+
+- `quell check` — scan docstrings and Pydantic models for requirement gaps; `--fix` generates verified tests
+- `quell reproduce` — convert a plain-English bug description into a verified failing test
+- `quell prove` — show requirement coverage score for a file or function
+- Docstring reader — extracts `MUST_RAISE`, `BOUNDARY`, `ENUM_VALID`, `MUST_RETURN` from docstrings
+- Type reader — extracts `BOUNDARY` and `ENUM_VALID` from Pydantic `Field` validators and `Literal` annotations
+- Bug reader — LLM-powered `BUG_REPRO` requirement generation from natural language
+- Unified `Requirement` model with typed `ConstraintKind` enum
+- Verifier rewritten: PASS on original code + FAIL on violated code (both required)
+- Violation injection: `MUST_RAISE` → comment out raise; `BOUNDARY` → weaken threshold; `MUST_RETURN` → return None
+- AST-based coverage checker — no test execution required for the scan phase
+- Rule engine updated for spec-based generation (MUST_RAISE, BOUNDARY, ENUM_VALID, MUST_RETURN)
+- Score now measures requirement coverage (not mutation score)
+- Published `quelltest 0.4.0` to PyPI
+
 ## v0.3.0 — 2026-05
 
-**GitHub App & VS Code Extension**
+**GitHub integration and VS Code extension**
 
-- `quell github-comment` — post/update mutation score as idempotent PR comment
-- GitHub App (`quell-github-app`) — webhook server for automatic PR comments
-- GitHub App JWT auth (`quell/github/auth.py`) — RS256 JWT + installation token exchange
-- PR comment formatter with shields.io badge, per-file table, and collapsible test preview
-- VS Code extension (`vscode-quell/`) — inline score annotations and status bar badge
-- Published `quelltest[github]` optional extra (PyJWT, cryptography, FastAPI, uvicorn)
-- `quell-github-app` entry point
+- `quell github-comment` — post/update score as idempotent PR comment
+- GitHub App webhook server for automatic PR comments
+- VS Code extension — inline score annotations and status bar badge
 
 ## v0.2.0 — 2026-04
 
 **CI, Score, Repair, MCP, and SDK**
 
-- `quell ci` command with `--diff-only`, `--threshold`, and `--report` (console/json/github)
-- `quell score` command with SVG badge generation and score history tracking
-- `quell repair` command for zero-manual-steps test suite repair
-- `quell-mcp` MCP server with 4 tools for AI agent integration
+- `quell ci` command with threshold enforcement
+- `quell score` command with SVG badge generation
+- `quell-mcp` MCP server with AI agent integration
 - `quell.sdk.Quell` Python SDK class
-- Score calculator (`quell/score/calculator.py`) — auto-detects mutmut 2.x vs 3.x schema
-- Diff parser (`quell/ci/diff_parser.py`) — git diff → changed line ranges
-- CI threshold enforcement (`quell/ci/threshold.py`) — exit code 1 on score below threshold
-- Published `quelltest[mcp]` optional extra
 
 ## v0.1.0 — 2026-03
 
 **Initial release**
 
-- `quell scan` — list survived mutants from mutmut or Stryker
-- `quell fix` — interactive generate → verify → write loop
-- `quell auto` — non-interactive auto-fix with `--dry-run`
-- `quell report` — audit log viewer
-- `quell init` — pyproject.toml config initializer
+- Mutation testing foundation: scan, fix, auto, report commands
 - Rule-based generators for 9 mutation operators
-- Verification engine with subprocess isolation and `finally`-block restore
-- libcst-based test injection preserving file formatting
-- mutmut 2.x + 3.x auto-detection
-- Stryker JSON adapter
-- Anthropic, OpenAI, and Ollama LLM providers
+- Verification engine with subprocess isolation
+- libcst-based test injection
+- mutmut 2.x + 3.x + Stryker adapters
 - Published to PyPI as `quelltest`
 
 ---
 
-[View on GitHub →](https://github.com/shashank7109/quell)
+[View on GitHub](https://github.com/shashank7109/quelltest_lib)

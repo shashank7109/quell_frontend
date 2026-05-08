@@ -1,19 +1,22 @@
 ---
 title: LLM Providers
-description: Configure Anthropic, OpenAI, or Ollama for UNKNOWN operator fallback.
+description: Configure Anthropic, OpenAI, or Ollama for complex spec analysis and bug reproduction.
 ---
 
 # LLM Providers
 
-Quell's rule engine handles 9 mutation operators deterministically — no LLM required. LLM is only called when an operator is classified as `UNKNOWN`.
+Quell's rule engine handles structured specs (docstrings, Pydantic models) deterministically — no LLM required. LLM is only called for:
+
+- `quell reproduce` — converting natural language bug descriptions into tests
+- Complex or ambiguous specs that the rule engine can't parse
 
 <Callout type="info">
-  If you never see `UNKNOWN` operators in your `quell scan` output, you don't need to configure an LLM at all.
+  If you only use `quell check` and `quell score`, you don't need to configure an LLM at all.
 </Callout>
 
 ## Anthropic (Claude)
 
-**Best for:** High-quality test generation, complex mutations.
+**Best for:** High-quality test generation, complex specs.
 
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...
@@ -23,14 +26,10 @@ export ANTHROPIC_API_KEY=sk-ant-...
 # pyproject.toml
 [tool.quell]
 llm_provider = "anthropic"
-llm_model = "claude-sonnet-4-6"   # or claude-opus-4-7
+llm_model = "claude-sonnet-4-5"   # or claude-opus-4-7
 ```
 
-```bash
-quell fix --llm anthropic
-```
-
-Supported models: any `claude-*` model. The `claude-sonnet-4-6` model is recommended for a good balance of quality and cost.
+Supported models: any `claude-*` model. `claude-sonnet-4-5` is recommended for a good balance of quality and cost.
 
 ## OpenAI (GPT-4)
 
@@ -44,52 +43,34 @@ llm_provider = "openai"
 llm_model = "gpt-4o"
 ```
 
-```bash
-quell fix --llm openai
-```
-
 ## Ollama (local, offline)
 
 Run LLM inference locally — no API key, no data leaves your machine.
 
 ```bash
 # Install Ollama: https://ollama.ai
-ollama pull llama3         # or codellama, deepseek-coder, etc.
+ollama pull codellama
 ```
 
 ```toml
 [tool.quell]
 llm_provider = "ollama"
-llm_model = "llama3"
+llm_model = "codellama"
 ollama_base_url = "http://localhost:11434"
-```
-
-```bash
-quell fix --llm ollama
 ```
 
 <Callout type="tip">
   For Python code, `codellama` or `deepseek-coder` tend to produce better tests than general models.
 </Callout>
 
-## Overriding on the command line
-
-The `--llm` flag on any command overrides `pyproject.toml`:
-
-```bash
-quell fix --llm openai           # use OpenAI even if anthropic is in config
-quell auto --llm ollama          # local Ollama
-quell ci --llm anthropic         # Claude in CI
-```
-
 ## What the LLM receives
 
-When `UNKNOWN` operator is encountered, Quell sends:
+When Quell calls the LLM, it sends only:
 
-1. The mutation operator name and diff (`original → mutated`)
-2. The enclosing function's full source code
-3. Existing test names from the test file (to avoid duplicates)
-4. Clear instructions: write a minimal pytest assertion that fails on the mutant
+1. The requirement description and constraint kind
+2. The target function's source code
+3. The spec text (docstring or bug description)
+4. Clear instructions: write a pytest test that PASSES on correct code and FAILS on violated code
 
 **What is NOT sent:**
 - Other files in your project
@@ -98,10 +79,10 @@ When `UNKNOWN` operator is encountered, Quell sends:
 
 ## Cost estimates
 
-| Provider | Model | Cost per `UNKNOWN` test |
+LLM is called at most once per uncovered requirement (and only if the rule engine can't handle it).
+
+| Provider | Model | Cost per generated test |
 |----------|-------|------------------------|
-| Anthropic | claude-sonnet-4-6 | ~$0.001 |
+| Anthropic | claude-sonnet-4-5 | ~$0.001 |
 | OpenAI | gpt-4o | ~$0.002 |
 | Ollama | local | $0 |
-
-On a typical project with 10–20 `UNKNOWN` mutants, total LLM cost is under $0.05.

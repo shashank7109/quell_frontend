@@ -5,76 +5,84 @@ description: Architecture and core design decisions behind Quell.
 
 # How It Works
 
-Quell has four stages: **Scan → Generate → Verify → Write**. Each stage is independent, reversible, and safe by default.
+Quell has four stages: **Read → Check → Verify → Write**. Each stage is independent, reversible, and safe by default.
 
-## Stage 1: Scan
+## Stage 1: Read specs
 
-Quell reads your mutation testing tool's output and extracts survived mutants.
+Quell reads specifications that already exist in your codebase. Each spec reader returns a list of `Requirement` objects.
 
-For **mutmut**, it opens `.mutmut-cache` (a SQLite database) directly. It auto-detects whether you're on mutmut 2.x or 3.x by checking the database schema.
+### Docstring reader
 
-For **Stryker**, it reads `reports/mutation/mutation.json` and extracts all mutants with status `Survived`.
+Parses Google-style and plain docstrings:
 
-Each mutant is represented as a `SurvivedMutant` object containing:
-- The file path and line number
-- The original code and the mutated code (as a unified diff)
-- The enclosing function's source (extracted via `ast.parse`)
-- Existing test names in the corresponding test file
+- `Raises:` blocks → `MUST_RAISE` requirements
+- `Returns:` blocks → `MUST_RETURN` requirements
+- Boundary phrases ("must be greater than 0", "cannot exceed") → `BOUNDARY` requirements
+- Enumeration phrases ("one of USD, EUR, GBP") → `ENUM_VALID` requirements
 
-## Stage 2: Generate
+### Type reader
 
-Quell classifies each mutant by its mutation operator, then runs the appropriate generator.
+Reads Pydantic models and type annotations:
 
-### Rule-based generation (no LLM)
+- `Field(gt=0)`, `Field(ge=18)`, `Field(min_length=1)` → `BOUNDARY` requirements
+- `Literal["USD", "EUR", "GBP"]` fields → `ENUM_VALID` requirements
+- Function arguments with `Literal` type → `ENUM_VALID` requirements
 
-For 9 common operators, Quell generates tests deterministically:
+### Bug reader
 
-| Operator | Generation strategy |
-|----------|---------------------|
-| `BOUNDARY_SHIFT` | Test at exact boundary value (e.g., `amount=0` for `> 0` → `>= 0`) |
-| `ARITHMETIC_SWAP` | Use non-zero, non-symmetric inputs (`x=3, y=2` distinguishes `+` from `-`) |
-| `COMPARISON_FLIP` | Provide an input where the original comparison is `True` |
-| `CONSTANT_MUTATION` | Assert the exact constant value, not a range |
-| `RETURN_MUTATION` | Assert the exact return value, not `None` |
-| `LOGICAL_SWAP` | Provide input where exactly one condition is true |
-| `CONDITION_NEGATE` | Input that makes the original condition true |
-| `STATEMENT_REMOVAL` | Assert the side effect of the removed statement |
-| `STRING_MUTATION` | Assert the exact non-empty string value |
+Converts natural language bug descriptions into `BUG_REPRO` requirements using an LLM prompt. Used by `quell reproduce`.
 
-Rule-based tests are generated in microseconds. No API key, no internet, no latency.
+Every spec reader returns `[]` on any error — they never raise exceptions.
 
-### LLM fallback (only for UNKNOWN)
+## Stage 2: Check coverage
 
-If the operator is `UNKNOWN`, Quell calls your configured LLM provider with a structured prompt containing:
-- The full function source
-- The exact diff (original → mutated)
-- Existing test patterns in the file
-- Clear instructions to write a minimal, deterministic test
+An AST-based coverage checker scans your test files and marks each `Requirement` as covered or uncovered. No test execution required.
 
-LLM is never called for operators the rule engine handles.
+Coverage heuristics:
 
-## Stage 3: Verify
+| Requirement kind | Covered if test file contains... |
+|-----------------|----------------------------------|
+| `MUST_RAISE` | `pytest.raises(ExceptionType)` |
+| `BOUNDARY` | assertion with boundary constants (0, -1, 1) |
+| `ENUM_VALID` | assertion referencing the enum values |
+| `MUST_RETURN` | assertion on the return value |
+| `BUG_REPRO` | never covered (always generates a test) |
 
-This is the most important stage. A test is only accepted if it passes both conditions:
+When in doubt, the checker marks a requirement as uncovered. Duplicate tests are cheaper than missed gaps.
 
-1. **Original suite passes** — run `pytest <temp_test_file>` against the original source. If this fails, the generated test is already broken.
-2. **Mutant is killed** — apply the mutation, run `pytest <temp_test_file>` again. If the test still passes, it doesn't actually kill the mutant.
+## Stage 3: Verify — The Moat
 
-Both conditions are required. A test that passes on original but passes on mutant too is an equivalent-mutant candidate and is skipped.
+This is the most important stage. A test is only accepted if it satisfies **both** conditions:
+
+1. **PASS on original code** — run `pytest <temp_test_file>`. If this fails, the generated test is already broken.
+2. **FAIL on violated code** — inject a violation into the source, run `pytest` again. If the test still passes, it doesn't actually prove the requirement.
+
+Both conditions are required. A test that passes both is verified and proceeds to the writer.
+
+### Violation injection
+
+Quell injects minimal violations to trigger requirement failures:
+
+| Kind | Violation |
+|------|-----------|
+| `MUST_RAISE` | Comment out the `raise` statement |
+| `BOUNDARY` | Weaken the threshold to `-9999` |
+| `MUST_RETURN` | Replace the return with `return None` |
+| `BUG_REPRO` | No injection — the bug already exists |
 
 ### Isolation
 
 Verification always runs in a subprocess (`subprocess.run`), never in-process. This ensures:
-- Mutations load fresh (no module caching)
+- Violations load fresh (no module caching)
 - Failures are isolated (a crashing test doesn't kill Quell)
 - Timeouts are enforced cleanly
 
 ### File safety
 
-```
+```python
 try:
     backup_source()
-    apply_mutant()
+    inject_violation()
     run_pytest()
 finally:
     restore_source()    # ALWAYS runs
@@ -110,15 +118,13 @@ Every action Quell takes is appended to `.quell/audit.jsonl` as a structured JSO
 ```json
 {
   "timestamp": "2026-05-08T14:32:01Z",
-  "mutant_id": "14",
+  "requirement_id": "req_abc123",
   "action": "test_written",
-  "file_path": "tests/test_calculator.py",
-  "test_function_name": "test_kill_mutant_14",
-  "verification_status": "verified"
+  "file_path": "tests/test_payments.py",
+  "test_function_name": "test_process_payment_must_raise_valueerror",
+  "verification_status": "VERIFIED"
 }
 ```
-
-Run `quell report` to view the audit log in a formatted table.
 
 ## Design invariants
 
@@ -128,5 +134,6 @@ These invariants are enforced throughout the codebase and must never be broken:
 2. **`writer.py`** — always backs up before writing, always restores on failure
 3. **`writer.py`** — always validates CST parses correctly before writing to disk
 4. **No code is sent to any server** unless an LLM provider is configured
-5. **LLM is only called** for `UNKNOWN` operators — never for ones the rule engine handles
+5. **LLM is only called** for complex/unstructured specs — never for ones the rule engine handles
 6. **Verification runs in a subprocess** — never in-process
+7. **Every spec reader returns `[]` on any error** — never raises

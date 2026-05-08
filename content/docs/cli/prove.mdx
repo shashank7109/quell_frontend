@@ -1,0 +1,59 @@
+---
+title: quell prove
+description: Show requirement coverage score for a file or function.
+---
+
+# quell prove
+
+Shows the percentage of requirements that are covered by existing tests for a given file or function.
+
+## Usage
+
+```bash
+quell prove FILE [OPTIONS]
+```
+
+## Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `FILE` | Source file to check |
+
+## Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--function` | `None` | Restrict to a specific function name |
+| `--root` | `.` | Project root directory |
+
+## Examples
+
+```bash
+# Score for a whole file
+quell prove src/payments.py
+
+# Score for a specific function
+quell prove src/payments.py --function process_payment
+```
+
+## Console output
+
+```
+ Quell Score
+ 80% of requirements proven for src/payments.py
+```
+
+Color indicates quality:
+
+- **Green**: score >= 80%
+- **Yellow**: score 60–79%
+- **Red**: score < 60%
+
+## Difference from `quell score`
+
+| Command | Scope | Use case |
+|---------|-------|----------|
+| `quell prove FILE` | Single file or function | During development, before committing |
+| `quell score` | Entire project | Overview of overall requirement coverage |
+
+Use `quell prove` while writing code to check coverage as you go. Use `quell score` for project health dashboards and CI.

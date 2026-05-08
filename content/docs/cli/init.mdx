@@ -1,0 +1,48 @@
+---
+title: quell init
+description: Add [tool.quell] configuration to pyproject.toml.
+---
+
+# quell init
+
+Adds a `[tool.quell]` configuration block to your `pyproject.toml`. Safe to run on an existing file — it checks for the block before adding.
+
+## Usage
+
+```bash
+quell init [OPTIONS]
+```
+
+## Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--root` | `.` | Project root directory |
+
+## Example
+
+```bash
+quell init
+# Added [tool.quell] to pyproject.toml
+```
+
+## Generated block
+
+```toml
+[tool.quell]
+llm_provider = "anthropic"
+llm_model = "claude-sonnet-4-5"
+max_verification_attempts = 3
+verification_timeout_seconds = 30
+auto_write = false
+enable_docstring = true
+enable_types = true
+enable_mutations = false
+score_threshold = 0.0
+```
+
+If `[tool.quell]` already exists, the command prints a notice and exits without modifying the file.
+
+## Next steps
+
+After running `quell init`, see the [pyproject.toml configuration reference](/docs/configuration/pyproject) for a full list of options.

@@ -18,20 +18,18 @@ export const NAV: NavItem[] = [
     title: "CLI Reference",
     items: [
       { title: "Overview", href: "/docs/cli" },
-      { title: "quell scan", href: "/docs/cli/scan" },
-      { title: "quell fix", href: "/docs/cli/fix" },
-      { title: "quell auto", href: "/docs/cli/auto" },
-      { title: "quell ci", href: "/docs/cli/ci" },
+      { title: "quell check", href: "/docs/cli/check" },
+      { title: "quell reproduce", href: "/docs/cli/reproduce" },
+      { title: "quell prove", href: "/docs/cli/prove" },
       { title: "quell score", href: "/docs/cli/score" },
-      { title: "quell repair", href: "/docs/cli/repair" },
-      { title: "quell report", href: "/docs/cli/report" },
-      { title: "quell github-comment", href: "/docs/cli/github-comment" },
+      { title: "quell ci", href: "/docs/cli/ci" },
+      { title: "quell init", href: "/docs/cli/init" },
     ],
   },
   {
     title: "Guides",
     items: [
-      { title: "Kill Your First Mutant", href: "/docs/guides/first-kill" },
+      { title: "Prove Your First Requirement", href: "/docs/guides/first-proof" },
       { title: "CI/CD Integration", href: "/docs/guides/ci-integration" },
       { title: "GitHub Actions", href: "/docs/guides/github-actions" },
       { title: "AI Agents (MCP)", href: "/docs/guides/ai-agents" },
@@ -56,16 +54,9 @@ export const NAV: NavItem[] = [
     ],
   },
   {
-    title: "Adapters",
-    items: [
-      { title: "mutmut", href: "/docs/adapters/mutmut" },
-      { title: "Stryker", href: "/docs/adapters/stryker" },
-    ],
-  },
-  {
     title: "Reference",
     items: [
-      { title: "Mutation Operators", href: "/docs/reference/operators" },
+      { title: "Constraint Kinds", href: "/docs/reference/constraint-kinds" },
       { title: "Changelog", href: "/docs/reference/changelog" },
     ],
   },
