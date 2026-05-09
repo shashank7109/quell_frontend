@@ -1,0 +1,211 @@
+---
+title: "PySpark Schema Testing: Never Ship a Broken Schema Again"
+description: "Learn how to automatically generate and verify PySpark schema tests from StructType definitions — no pyspark import required at scan time, no boilerplate, no manual test writing."
+date: "2026-05-09"
+tags: ["pyspark", "data engineering", "testing", "schema validation", "quelltest"]
+---
+
+# PySpark Schema Testing: Never Ship a Broken Schema Again
+
+PySpark schema bugs are silent killers. A `nullable=False` column that suddenly accepts nulls. A `StringType` column that should be `DoubleType`. A schema definition that drifts from the actual DataFrame being written to your data lake.
+
+These bugs don't show up in unit tests — because most data engineering teams don't write schema tests. Writing them manually is tedious. PySpark tests require a SparkSession, which requires either a local Spark installation or a mocked fixture that lies about what the real cluster does.
+
+The result: schema bugs make it to production, ETL jobs fail at 3am, and oncall gets paged.
+
+## What a PySpark Schema Test Actually Needs to Verify
+
+When you define a schema:
+
+```python
+from pyspark.sql.types import StructType, StructField, StringType, DoubleType, BooleanType
+
+payment_schema = StructType([
+    StructField("transaction_id", StringType(), nullable=False),
+    StructField("amount",         DoubleType(),  nullable=False),
+    StructField("currency",       StringType(),  nullable=False),
+    StructField("is_refund",      BooleanType(), nullable=True),
+])
+```
+
+There are two classes of requirements to verify:
+
+**1. NOT_NULL constraints** — columns where `nullable=False` must reject null values:
+- `transaction_id` must not be null
+- `amount` must not be null
+- `currency` must not be null
+
+**2. TYPE_CHECK constraints** — the actual schema must match the declared schema:
+- `amount` must be `DoubleType`, not `StringType` (a common migration mistake)
+- `is_refund` must be `BooleanType`
+
+Writing these tests by hand means: setting up a SparkSession, constructing invalid DataFrames, catching the right exceptions. It's 50+ lines of boilerplate per schema.
+
+## Automatic Schema Test Generation with Quell
+
+[Quell](https://quell.buildsbyshashank.tech) v0.5.0 includes a PySpark schema reader that parses `StructType` definitions from AST — without importing `pyspark` at scan time — and generates verified tests for every constraint.
+
+```bash
+pip install quelltest
+quell check src/schemas.py --no-llm
+```
+
+Output:
+
+```
+  payment_schema   NOT_NULL    transaction_id must not be null   ✗ no test
+  payment_schema   NOT_NULL    amount must not be null            ✗ no test
+  payment_schema   NOT_NULL    currency must not be null          ✗ no test
+  payment_schema   TYPE_CHECK  payment_schema matches StructType  ✗ no test
+
+  Requirement coverage: 0% (0/4 covered)
+```
+
+With `--fix`:
+
+```bash
+quell check src/schemas.py --fix --no-llm
+```
+
+```
+  payment_schema   NOT_NULL    transaction_id   ✓ verified → written
+  payment_schema   NOT_NULL    amount           ✓ verified → written
+  payment_schema   NOT_NULL    currency         ✓ verified → written
+  payment_schema   TYPE_CHECK  payment_schema   ✓ verified → written
+
+  4 tests written → tests/test_schemas.py
+  Your code never left your machine.
+```
+
+## What the Generated Tests Look Like
+
+**NOT_NULL test:**
+
+```python
+import pytest
+from pyspark.sql import SparkSession
+from pyspark.sql import Row
+from pyspark.sql.utils import AnalysisException
+from src.schemas import payment_schema
+
+def test_payment_schema_not_null_transaction_id(spark: SparkSession):
+    with pytest.raises((AnalysisException, Exception)):
+        spark.createDataFrame(
+            [Row(transaction_id=None, amount=1.0, currency="USD", is_refund=False)],
+            schema=payment_schema,
+        ).collect()
+```
+
+**TYPE_CHECK test:**
+
+```python
+from pyspark.sql.types import StructType, StructField, StringType, DoubleType, BooleanType
+from chispa.dataframe_comparer import assert_schema_equal
+
+def test_payment_schema_type_check(spark: SparkSession):
+    expected = StructType([
+        StructField("transaction_id", StringType(), nullable=False),
+        StructField("amount",         DoubleType(),  nullable=False),
+        StructField("currency",       StringType(),  nullable=False),
+        StructField("is_refund",      BooleanType(), nullable=True),
+    ])
+    assert_schema_equal(payment_schema, expected)
+```
+
+**Auto-generated conftest.py:**
+
+Quell auto-creates a `conftest.py` with a session-scoped SparkSession fixture if one doesn't exist:
+
+```python
+import pytest
+from pyspark.sql import SparkSession
+
+@pytest.fixture(scope="session")
+def spark():
+    return (
+        SparkSession.builder
+        .master("local[1]")
+        .appName("quell-tests")
+        .config("spark.sql.shuffle.partitions", "1")
+        .getOrCreate()
+    )
+```
+
+No manual fixture setup. One command and you have a working test suite.
+
+## Two-Phase Verification
+
+Every generated schema test is verified before being written to disk:
+
+**Phase 1:** Run the test on your actual schema — must pass. If the schema is correctly defined, the NOT_NULL test should raise an exception when a null is inserted.
+
+**Phase 2:** Temporarily modify the schema (set `nullable=True` for the tested column) and run the test again — must fail. This proves the test is actually checking the nullable constraint, not just running.
+
+If both phases pass, the test is proven to catch real violations. Only then is it written to disk.
+
+## Works on Function-Returned Schemas Too
+
+Quell finds schemas in multiple positions — not just module-level assignments:
+
+```python
+def get_events_schema() -> StructType:
+    return StructType([
+        StructField("event_id",   StringType(), nullable=False),
+        StructField("user_id",    StringType(), nullable=False),
+        StructField("event_type", StringType(), nullable=False),
+        StructField("properties", StringType(), nullable=True),
+        StructField("timestamp",  DoubleType(),  nullable=False),
+    ])
+```
+
+Quell's AST reader walks function bodies and return statements, so function-returned schemas are covered too.
+
+## CI Integration
+
+Add schema test coverage to your CI pipeline:
+
+```yaml
+- name: Quell schema check
+  run: |
+    pip install quelltest[pyspark]
+    quell check src/ --no-llm --format json
+```
+
+The `--format json` output is machine-readable and can feed dashboards or threshold gates.
+
+For PR comments showing which schema requirements are uncovered:
+
+```bash
+quell pr $PR_NUMBER --comment --no-llm
+```
+
+## Why AST-Only Matters
+
+Most schema testing tools require you to import your schemas at scan time — which means importing PySpark, which means a Spark runtime is required just to discover what needs testing.
+
+Quell's PySpark reader works at the AST level: it reads your source file as a syntax tree, finds `StructType` calls, and extracts field names and types without executing any code. This means:
+
+- Schema scanning works in environments without PySpark installed
+- CI scan jobs don't need a Spark cluster
+- Only the generated tests (when run with pytest) need PySpark
+
+This is the same design principle as Python's AST module: parse the structure, don't execute it.
+
+## Getting Started
+
+```bash
+# Install Quell with PySpark support
+pip install quelltest[pyspark]
+
+# Scan your schema definitions
+quell check src/schemas.py --no-llm
+
+# Generate and verify tests for all gaps
+quell check src/schemas.py --fix --no-llm
+```
+
+Your schemas are already defined. The requirements are already there. You just need the tests to prove them.
+
+---
+
+*[Read the PySpark schema docs](/docs/guides/pyspark) or [view Quell on GitHub](https://github.com/shashank7109/quelltest_lib).*

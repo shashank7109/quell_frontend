@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
+import GoogleAnalytics from "@/components/GoogleAnalytics";
 import "./globals.css";
 
 const inter = Inter({
@@ -19,26 +20,27 @@ const BASE_URL = "https://quell.buildsbyshashank.tech";
 export const metadata: Metadata = {
   metadataBase: new URL(BASE_URL),
   title: {
-    default: "Quell — Kill Surviving Mutants",
+    default: "Quell — Verified Test Generation for Python",
     template: "%s | Quell",
   },
   description:
-    "Quell auto-generates verified killing tests for survived mutants from mutmut and Stryker. Rule-based first, LLM as last resort. Zero false positives.",
+    "Quell reads your docstrings, Pydantic models, and PySpark schemas — extracts every testable requirement — then generates and verifies pytest tests that actually prove each one. No LLM key required.",
   keywords: [
-    "mutation testing",
-    "mutmut",
-    "stryker",
-    "pytest",
-    "test generation",
-    "survived mutants",
-    "killing tests",
-    "quell",
+    "python test generation",
     "quelltest",
-    "python testing",
-    "mutation score",
-    "code quality",
+    "pytest",
+    "docstring testing",
+    "spec-first testing",
+    "requirement coverage",
+    "pyspark schema testing",
+    "test automation python",
+    "verified test generation",
+    "pydantic testing",
+    "python code quality",
+    "automated testing",
+    "quell",
   ],
-  authors: [{ name: "Shashank Bindal", url: BASE_URL }],
+  authors: [{ name: "Shashank Bindal", url: "https://shashankbindal.me" }],
   creator: "Shashank Bindal",
   publisher: "Quell",
   category: "Developer Tools",
@@ -61,24 +63,24 @@ export const metadata: Metadata = {
     locale: "en_US",
     url: BASE_URL,
     siteName: "Quell",
-    title: "Quell — Kill Surviving Mutants",
+    title: "Quell — Verified Test Generation for Python",
     description:
-      "Auto-generate verified killing tests for survived mutants from mutmut and Stryker. Rule-based first, LLM as last resort.",
+      "Reads docstrings, Pydantic models, and PySpark schemas. Generates pytest tests that prove requirements — not just achieve coverage. No LLM key required.",
     images: [
       {
         url: "/quell_logo.png",
         width: 1200,
         height: 630,
-        alt: "Quell — Kill Surviving Mutants",
+        alt: "Quell — Verified Test Generation for Python",
         type: "image/png",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Quell — Kill Surviving Mutants",
+    title: "Quell — Verified Test Generation for Python",
     description:
-      "Auto-generate verified killing tests for survived mutants from mutmut and Stryker.",
+      "Reads your docstrings and Pydantic models. Generates and verifies pytest tests for every requirement. No LLM key needed.",
     images: ["/quell_logo.png"],
     creator: "@shashank7109",
     site: "@quelldotbuild",
@@ -93,8 +95,7 @@ export const metadata: Metadata = {
   },
   manifest: "/manifest.json",
   verification: {
-    // Add Google Search Console and Bing verification tokens here when available
-    // google: "your-google-verification-token",
+    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION,
   },
 };
 
@@ -115,39 +116,49 @@ const jsonLd = {
   operatingSystem: "Linux, macOS, Windows",
   url: BASE_URL,
   description:
-    "Auto-generate verified killing tests for survived mutants from mutmut and Stryker. Rule-based first, LLM as last resort. Zero false positives.",
-  softwareVersion: "0.3.0",
+    "Quell reads docstrings, Pydantic models, and PySpark schemas — extracts every testable requirement — then generates and verifies pytest tests that prove each one. No LLM key required.",
+  softwareVersion: "0.5.0",
   offers: [
     {
       "@type": "Offer",
       price: "0",
       priceCurrency: "INR",
       name: "Hobby",
-      description: "250 mutations per month, free forever",
+      description: "500 requirements per month, rule-based generation, no LLM key needed",
     },
     {
       "@type": "Offer",
       price: "1599",
       priceCurrency: "INR",
       name: "Pro",
-      description: "10,000 mutations per month with LLM fallback",
+      description: "Unlimited requirements, LLM fallback with Claude & GPT-4, usage analytics",
+    },
+    {
+      "@type": "Offer",
+      price: "6599",
+      priceCurrency: "INR",
+      name: "Team",
+      description: "Everything in Pro, 10 team seats, SSO/SAML, priority support",
     },
   ],
   author: {
     "@type": "Person",
     name: "Shashank Bindal",
+    url: "https://shashankbindal.me",
   },
   downloadUrl: "https://pypi.org/project/quelltest/",
   installUrl: "https://pypi.org/project/quelltest/",
   featureList: [
-    "Mutmut and Stryker adapter",
-    "Rule-based test generation — 9 mutation operators",
-    "LLM fallback for unknown operators",
-    "Verified tests that actually kill the mutant",
-    "libcst-based injection preserves formatting",
-    "CI integration with diff-only mode",
-    "GitHub PR comment integration",
-    "MCP server for AI agents",
+    "Reads requirements from Python docstrings (Raises:, Returns:, Args:)",
+    "Reads requirements from Pydantic models (Field validators, Literal types)",
+    "Reads requirements from PySpark StructType schemas",
+    "AST-based coverage checker — no test execution at scan time",
+    "Deterministic rule engine — no LLM, no network, no API key",
+    "Two-phase verification: PASS on original code + FAIL on violated code",
+    "libcst-based test injection preserves formatting",
+    "quell pr — posts requirement coverage report as PR comment",
+    "OAuth 2.0 PKCE authentication",
+    "Privacy-safe diagnostic report (.quell/report.json)",
   ],
 };
 
@@ -168,6 +179,7 @@ export default function RootLayout({
         />
       </head>
       <body className="bg-background text-white antialiased font-sans">
+        <GoogleAnalytics />
         {children}
       </body>
     </html>

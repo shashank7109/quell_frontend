@@ -1,0 +1,222 @@
+---
+title: "Your Docstrings Are Already a Test Spec — You're Just Not Using Them"
+description: "Python docstrings contain every testable requirement your functions have. Learn how to turn Raises:, Returns:, and Args: blocks into verified pytest tests automatically."
+date: "2026-05-09"
+tags: ["python", "pytest", "docstrings", "test generation", "quelltest"]
+---
+
+# Your Docstrings Are Already a Test Spec — You're Just Not Using Them
+
+Most Python developers write docstrings as documentation — something that `help()` displays or Sphinx renders. But look at a well-written docstring and you'll see something else: a complete specification of every testable behavior the function has.
+
+```python
+def create_user(email: str, role: str = "viewer") -> dict:
+    """
+    Create a new user account.
+
+    Args:
+        email: Valid email address for the new account.
+        role: Account role. Must be one of: admin, editor, viewer.
+
+    Raises:
+        ValueError: If email format is invalid.
+        ValueError: If role is not one of the allowed values.
+        DuplicateEmailError: If an account with this email already exists.
+
+    Returns:
+        dict with keys: user_id, email, role, created_at.
+    """
+```
+
+Count the requirements in that docstring:
+1. Raises `ValueError` for invalid email format
+2. Raises `ValueError` for invalid role
+3. Raises `DuplicateEmailError` for duplicate email
+4. Returns a dict
+5. That dict must contain `user_id`, `email`, `role`, `created_at`
+
+Five requirements. How many of them does your current test suite actually verify?
+
+## The Gap Between Docs and Tests
+
+The problem isn't that developers don't know what to test — the docstring tells them. The problem is **the translation gap**: turning prose requirements into tests is tedious, and the tests that get written often check existence rather than behavior.
+
+A typical test for the above function:
+
+```python
+def test_create_user():
+    user = create_user("alice@example.com")
+    assert user["email"] == "alice@example.com"
+```
+
+This test exercises the happy path and checks one key. It doesn't verify any of the five requirements from the docstring. If someone removes the `ValueError` guard for invalid email, this test still passes.
+
+## What a Requirement-Proving Test Looks Like
+
+A test that proves a requirement must fail if the requirement is violated. For the `ValueError` on invalid email:
+
+```python
+import pytest
+from myapp.users import create_user
+
+def test_create_user_raises_on_invalid_email():
+    with pytest.raises(ValueError):
+        create_user("not-an-email")
+
+def test_create_user_raises_on_invalid_role():
+    with pytest.raises(ValueError):
+        create_user("alice@example.com", role="superadmin")
+```
+
+These tests are linked to specific requirements. If the `ValueError` guard is removed, the test fails immediately.
+
+The difference: the first style tests that code runs; the second style tests that requirements hold.
+
+## Reading Requirements from Docstrings Automatically
+
+Docstrings follow patterns that are machine-readable. The Google, NumPy, and Sphinx styles all use consistent section headers:
+
+| Section | What it specifies | Requirement type |
+|---------|------------------|-----------------|
+| `Raises:` | Exception conditions | `MUST_RAISE` |
+| `Returns:` | Return value structure | `MUST_RETURN` |
+| `Args:` | Input constraints | `BOUNDARY` |
+
+[Quell](https://quell.buildsbyshashank.tech) parses these sections with an AST-based reader — no LLM, no network call — and turns each entry into a typed `Requirement`:
+
+```
+MUST_RAISE   ValueError: email format is invalid   → process_payment
+MUST_RAISE   ValueError: role is not allowed       → process_payment
+MUST_RETURN  dict with keys: user_id, email, role  → process_payment
+```
+
+Run on your project:
+
+```bash
+pip install quelltest
+quell check src/users.py
+```
+
+Output:
+
+```
+  create_user   MUST_RAISE   ValueError: invalid email    ✗ no test
+  create_user   MUST_RAISE   ValueError: invalid role     ✗ no test
+  create_user   MUST_RAISE   DuplicateEmailError          ✗ no test
+  create_user   MUST_RETURN  dict with user_id key        ✓ covered
+
+  Requirement coverage: 25% (1/4 covered)
+```
+
+## Generating and Verifying the Missing Tests
+
+With `--fix`, Quell generates a pytest test for each uncovered requirement, then runs a two-phase verification:
+
+**Phase 1:** Run the generated test on your original code. If it fails (syntax error, wrong exception type, test design issue), the test is discarded.
+
+**Phase 2:** Inject a violation into the source — comment out the raise statement, weaken the boundary check — and run the test again. If it still passes, the test doesn't prove the requirement. Also discarded.
+
+Only tests that pass phase 1 AND fail phase 2 are written to disk. Zero false positives.
+
+```bash
+$ quell check src/users.py --fix --no-llm
+
+  create_user   MUST_RAISE   ValueError: invalid email   ✓ verified → written
+  create_user   MUST_RAISE   ValueError: invalid role    ✓ verified → written
+  create_user   MUST_RAISE   DuplicateEmailError         ✗ skipped (can't inject violation automatically)
+
+  2 tests written → tests/test_users.py
+  Your code never left your machine.
+```
+
+The generated tests use the actual function signature — no `NotImplementedError` stubs, no generic placeholders:
+
+```python
+import pytest
+from src.users import create_user
+
+def test_create_user_must_raise_value_error_invalid_email():
+    with pytest.raises(ValueError):
+        create_user(email="not-an-email")
+
+def test_create_user_must_raise_value_error_invalid_role():
+    with pytest.raises(ValueError):
+        create_user(email="test@example.com", role="__invalid__")
+```
+
+## Pydantic Models Work Too
+
+Quell also reads Pydantic model validators as specifications:
+
+```python
+from pydantic import BaseModel, Field
+from typing import Literal
+
+class PaymentRequest(BaseModel):
+    amount: float = Field(gt=0, le=10_000)
+    currency: Literal["USD", "EUR", "GBP", "INR"]
+```
+
+This generates:
+- `BOUNDARY` requirement: `amount > 0` and `amount <= 10000`
+- `ENUM_VALID` requirement: `currency` must be one of the listed values
+
+No docstring needed — the model is the spec.
+
+## Writing Better Docstrings
+
+If you want Quell (and your teammates) to extract more requirements automatically, a few patterns help:
+
+**Be specific in `Raises:` sections:**
+```python
+# Less useful
+# Raises:
+#     ValueError: If input is invalid.
+
+# More useful
+# Raises:
+#     ValueError: If amount is less than or equal to 0.
+#     ValueError: If currency is not a supported ISO 4217 code.
+```
+
+**Use `Returns:` to specify structure:**
+```python
+# Returns:
+#     dict with keys: transaction_id (str), status (str), timestamp (float).
+```
+
+**Use type annotations for boundaries:**
+```python
+def withdraw(amount: float = Field(gt=0)) -> dict:
+```
+
+Each of these becomes a testable requirement that Quell can verify automatically.
+
+## The Workflow
+
+```bash
+# 1. Write your function with a docstring
+# 2. Run Quell to see which requirements are unproven
+quell check src/ --no-llm
+
+# 3. Fix gaps automatically
+quell check src/ --fix --no-llm
+
+# 4. Check into CI to catch regressions
+quell check src/ --format json
+```
+
+Your docstrings don't need to change. Your test philosophy does.
+
+## The Payoff
+
+Teams that adopt spec-first testing — writing requirements first, code second, and verifying with tools like Quell — report:
+- Bugs caught earlier (at the function boundary, not in production)
+- Faster onboarding (docstrings + tests tell the full story)
+- Fewer regressions (requirements can't silently break)
+
+Your docstrings are already written. Start treating them as the source of truth they are.
+
+---
+
+*[Install Quell](https://pypi.org/project/quelltest/) (`pip install quelltest`) or [read the full documentation](/docs).*

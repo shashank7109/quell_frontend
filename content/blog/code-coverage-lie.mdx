@@ -1,0 +1,174 @@
+---
+title: "100% Code Coverage Is a Lie — Here's What Actually Matters"
+description: "Code coverage measures which lines ran, not whether your tests prove anything. Learn why coverage is a vanity metric and what to track instead."
+date: "2026-05-09"
+tags: ["testing", "python", "pytest", "code quality"]
+---
+
+# 100% Code Coverage Is a Lie — Here's What Actually Matters
+
+You pushed to main. CI went green. Coverage badge shows 100%. You shipped.
+
+Three days later, a customer reports that your payment function silently accepts a zero amount and charges them nothing. Your tests ran that line. They just never checked what it *did*.
+
+This is the coverage trap — and nearly every engineering team falls into it.
+
+## What Code Coverage Actually Measures
+
+Coverage tools (pytest-cov, Istanbul, JaCoCo) answer one question: **did this line execute during a test run?**
+
+That's it. They do not ask:
+- Did the test assert anything meaningful?
+- Did the test verify the *requirement* for that line?
+- Would this test catch a bug if someone introduced one?
+
+A test that looks like this achieves 100% line coverage on `process_payment`:
+
+```python
+def test_payment_runs():
+    result = process_payment(amount=0, currency="USD")
+    assert result is not None
+```
+
+That test executes every line. It checks that the function returned *something*. It would pass even if `process_payment` accepted `amount=-999` and returned `{"status": "ok"}`.
+
+## The Requirement Gap
+
+Every function has an implicit or explicit specification — what it *must* do. Docstrings, Pydantic models, and type annotations express these specifications directly:
+
+```python
+def process_payment(amount: float, currency: str) -> dict:
+    """
+    Process a payment transaction.
+
+    Args:
+        amount: Payment amount in the given currency.
+        currency: ISO 4217 currency code.
+
+    Raises:
+        ValueError: If amount is <= 0.
+        ValueError: If currency is not in SUPPORTED_CURRENCIES.
+
+    Returns:
+        dict with keys: transaction_id, status, timestamp.
+    """
+```
+
+This docstring contains four testable requirements:
+1. Must raise `ValueError` when `amount <= 0`
+2. Must raise `ValueError` for unsupported currencies
+3. Must return a dict
+4. That dict must contain `transaction_id`, `status`, `timestamp`
+
+A 100%-coverage test suite can satisfy zero of these requirements and still report green.
+
+## Why This Happens
+
+Coverage became a proxy metric because it's easy to measure. Management asks for 80% coverage. Engineers write tests to hit the number. The tests run the code without proving the code is correct.
+
+This is [Goodhart's Law](https://en.wikipedia.org/wiki/Goodhart%27s_law) in software: once a measure becomes a target, it ceases to be a good measure.
+
+The result: codebases with high coverage and fragile correctness. Tests that bless bugs instead of catching them.
+
+## What to Measure Instead: Requirement Coverage
+
+Instead of asking "did this line run?", ask "is this requirement tested?"
+
+A requirement is a specific, falsifiable claim about your code's behavior:
+- "Returns 400 when input is invalid"
+- "Raises ValueError if amount is negative"
+- "Returns a dict with status key"
+- "Rejects amounts below the minimum"
+
+**Requirement coverage** measures how many of these claims have a test that would actually *fail* if the claim were violated.
+
+This is the distinction between a test that runs code and a test that proves behavior.
+
+## Two-Phase Verification: The Only Way to Know
+
+Here's the test quality check most teams skip: **would this test fail if the requirement were broken?**
+
+The way to answer that automatically is mutation testing — inject a violation, run the test, confirm it fails.
+
+For the payment example:
+
+```python
+# Original code
+def process_payment(amount: float, currency: str) -> dict:
+    if amount <= 0:
+        raise ValueError(f"Amount must be positive, got {amount}")
+    ...
+
+# Violation: comment out the guard
+def process_payment(amount: float, currency: str) -> dict:
+    # if amount <= 0:          ← removed
+    #     raise ValueError(...)
+    ...
+```
+
+Run your test suite on the violated code. If every test still passes, your tests don't prove the `amount > 0` requirement. They just run the code path.
+
+A two-phase verified test:
+1. Runs on the original code → **must pass**
+2. Runs on violated code → **must fail**
+
+Only tests that satisfy both phases are actually proving something.
+
+## How Quell Measures Requirement Coverage
+
+[Quell](https://quell.buildsbyshashank.tech) reads the specifications already in your codebase — docstrings, Pydantic models, type annotations — extracts every requirement, and checks which ones have no test that would catch a violation.
+
+```bash
+$ quell check payments.py
+```
+
+```
+  process_payment   MUST_RAISE   ValueError: amount <= 0    ✗ no test
+  process_payment   MUST_RAISE   ValueError: bad currency   ✗ no test
+  process_payment   MUST_RETURN  dict with status key        ✓ covered
+  PaymentRequest    ENUM_VALID   currency: USD|EUR|GBP       ✗ no test
+```
+
+No annotation required. Quell reads what you've already written.
+
+With `--fix`, it generates a test for each gap, then runs it on the original code (must pass) and on code with the requirement violated (must fail). Only verified tests get written to disk.
+
+```bash
+$ quell check payments.py --fix --no-llm
+
+  process_payment   MUST_RAISE   ValueError: amount <= 0    ✓ verified → written
+  process_payment   MUST_RAISE   ValueError: bad currency   ✓ verified → written
+  PaymentRequest    ENUM_VALID   currency: USD|EUR|GBP       ✓ verified → written
+
+  3 tests written → tests/test_payments.py
+  Your code never left your machine.
+```
+
+## The Practical Shift
+
+You don't need to throw away coverage reporting. Use it as a floor, not a ceiling.
+
+| Metric | What it tells you | Use as |
+|--------|------------------|--------|
+| Line coverage | Which code ran | Minimum bar (find dead code) |
+| Requirement coverage | Which specs are proven | Quality bar |
+| Mutation score | How many injected bugs tests catch | Strength bar |
+
+The teams that ship without major regressions aren't the ones with 100% coverage — they're the ones whose tests actually prove requirements.
+
+## Getting Started
+
+Install Quell and run it on any Python file with docstrings:
+
+```bash
+pip install quelltest
+quell check src/ --no-llm
+```
+
+No API key needed. No configuration required. It reads your existing docstrings and tells you which requirements are unproven.
+
+The coverage badge is nice. A test suite that actually catches bugs is better.
+
+---
+
+*Quell is open source. [View the source on GitHub](https://github.com/shashank7109/quelltest_lib) or [read the docs](/docs).*

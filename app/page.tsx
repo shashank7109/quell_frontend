@@ -93,6 +93,7 @@ export default function Home() {
             <Link href="#how-it-works" className="hover:text-white transition-colors">How it works</Link>
             <Link href="#pricing" className="hover:text-white transition-colors">Pricing</Link>
             <Link href="/docs" className="hover:text-white transition-colors">Docs</Link>
+            <Link href="/blog" className="hover:text-white transition-colors">Blog</Link>
             <a href="https://github.com/shashank7109/quelltest_lib" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">GitHub</a>
           </div>
           <div className="flex items-center gap-3">
