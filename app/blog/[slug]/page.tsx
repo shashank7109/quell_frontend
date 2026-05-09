@@ -9,18 +9,6 @@ import { components } from "@/components/docs/MdxComponents";
 import { ChevronLeft } from "lucide-react";
 import BlogViewCounter from "@/components/BlogViewCounter";
 
-const API = process.env.NEXT_PUBLIC_API_URL || "";
-
-async function fetchInitialViews(slug: string): Promise<number> {
-  try {
-    const r = await fetch(`${API}/api/blog/views/${slug}`, { next: { revalidate: 60 } });
-    if (!r.ok) return 0;
-    const data = await r.json();
-    return data.views ?? 0;
-  } catch {
-    return 0;
-  }
-}
 
 const BASE_URL = "https://quell.buildsbyshashank.tech";
 
@@ -75,7 +63,6 @@ export default async function BlogPostPage({ params }: Props) {
   const { slug } = await params;
   const post = getBlogPost(slug);
   if (!post) notFound();
-  const initialViews = await fetchInitialViews(slug);
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -144,7 +131,7 @@ export default async function BlogPostPage({ params }: Props) {
               <span className="text-[#222]">·</span>
               <span>{post.meta.readTime} min read</span>
               <span className="text-[#222]">·</span>
-              <BlogViewCounter slug={slug} initialViews={initialViews} />
+              <BlogViewCounter slug={slug} />
             </div>
             <h1 className="text-2xl md:text-3xl font-bold tracking-tight leading-snug mb-4">
               {post.meta.title}
