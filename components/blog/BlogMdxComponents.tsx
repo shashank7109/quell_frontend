@@ -25,7 +25,7 @@ export const blogComponents: MDXComponents = {
   tr: (p) => <tr className="hover:bg-[#0a0a0a] transition-colors" {...p} />,
   code: (p) => {
     if ((p as { className?: string }).className) return <code {...p} />;
-    return <code className="font-mono text-[#e879f9] bg-[#1a0a1a] px-1.5 py-0.5 rounded text-[13px]" {...p} />;
+    return <code className="font-mono text-[#7cc2ff] bg-[#0a1220] px-1.5 py-0.5 rounded text-[13px]" {...p} />;
   },
   pre: (p) => (
     <pre

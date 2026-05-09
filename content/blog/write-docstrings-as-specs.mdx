@@ -8,15 +8,18 @@ tags: ["python", "docstrings", "pytest", "tutorial", "quelltest"]
 
 # How to Write Python Docstrings That Double as a Test Specification
 
-A docstring is usually written for the reader — a teammate, your future self, Sphinx. But a well-structured docstring is also a machine-readable specification. Every `Raises:` entry is a testable requirement. Every `Returns:` entry describes what a test should assert.
+Docstrings and tests describe the same thing. One does it in prose, the other in code. If they diverge — the docstring says "raises ValueError for invalid input" but no test verifies it — you have a contract that nobody's checking.
 
-This guide shows you exactly how to write docstrings that work for both humans and tools like Quell.
+The good news: docstrings are structured enough to be machine-readable. If you write them consistently, tools like Quell can pull requirements out of them automatically and tell you which ones have no test.
 
-## The Two Styles Quell Reads
+This is how to write docstrings that work for both.
 
-Quell's docstring reader handles both Google style and NumPy style. Both work — pick the one your team uses.
+## The two formats Quell reads
+
+Both Google style and NumPy style work. Pick whichever your team already uses.
 
 **Google style:**
+
 ```python
 def create_order(user_id: int, amount: float, currency: str) -> dict:
     """
@@ -38,6 +41,7 @@ def create_order(user_id: int, amount: float, currency: str) -> dict:
 ```
 
 **NumPy style:**
+
 ```python
 def create_order(user_id: int, amount: float, currency: str) -> dict:
     """
@@ -45,8 +49,6 @@ def create_order(user_id: int, amount: float, currency: str) -> dict:
 
     Parameters
     ----------
-    user_id : int
-        ID of the user placing the order.
     amount : float
         Order total. Must be positive.
     currency : str
@@ -66,47 +68,40 @@ def create_order(user_id: int, amount: float, currency: str) -> dict:
     """
 ```
 
-Both produce the same requirements:
-- `MUST_RAISE ValueError` — two conditions
-- `MUST_RAISE UserNotFoundError`
-- `MUST_RETURN dict`
+Both produce the same requirements: two `MUST_RAISE` entries, one `MUST_RETURN`.
 
-## What Makes a `Raises:` Entry Testable
+## What makes a `Raises:` entry useful
 
-Quell extracts the exception type and the condition. The condition is what tells it how to construct a test input that triggers the exception.
+The more specific the condition, the better the generated test. Quell needs to know *what input triggers the exception* to construct a valid test.
 
-**Specific conditions (best):**
-
+**Specific — best:**
 ```python
 # Raises:
 #     ValueError: If amount is less than or equal to 0.
 #     ValueError: If currency is not in ["USD", "EUR", "GBP"].
-#     ValueError: If email does not contain "@".
 ```
 
-Quell can construct exact inputs: `amount=0`, an invalid currency string, an email without `@`.
+Quell knows exactly what to pass: `amount=0`, an invalid currency string. It can construct a test that will fail when the guard is removed.
 
-**Type-only (workable):**
-
+**Vague condition — still useful:**
 ```python
 # Raises:
 #     ValueError: If input is invalid.
 ```
 
-Quell generates a test, but uses generic invalid inputs (`0`, `""`, `"__invalid__"`). Still useful — catches cases where the guard is removed entirely.
+Quell generates a test with generic invalid inputs. The test won't be as targeted, but it will still catch cases where the guard is removed entirely.
 
-**Vague (harder):**
-
+**External dependency — skipped:**
 ```python
 # Raises:
 #     RuntimeError: If the external service is unavailable.
 ```
 
-Quell flags this but skips generation — can't deterministically trigger an external service failure without mocking. The rule engine notes it; the LLM fallback can handle it if configured.
+There's no way to deterministically trigger this without mocking. Quell flags it as uncovered and skips generation. The LLM fallback can handle it if you configure one, but the rule engine won't hallucinate a test for it.
 
-## What Makes a `Returns:` Entry Testable
+## What makes a `Returns:` entry testable
 
-Return type + structure is what Quell checks.
+Quell checks return type and key presence:
 
 ```python
 # Returns:
@@ -123,120 +118,73 @@ def test_create_order_must_return():
     assert "created_at" in result
 ```
 
-**What works well:**
+This handles:
 - `dict with keys: X, Y, Z` — checks key presence
-- `list of dicts` — checks list + element type
-- `str` — checks return type
-- `None` — Quell skips (Optional returns are excluded by default)
+- `list of dicts` — checks list + element type  
+- Primitive types like `str`, `int`, `bool`
 
-**What doesn't auto-generate:**
-- Complex nested structures
-- Union return types
-- Generator/iterator returns
+It doesn't auto-generate for complex nested structures or union return types — those get flagged but skipped.
 
-## Pydantic Models as Docstrings You Don't Have to Write
+## Pydantic models as specs you don't have to write
 
-If you use Pydantic, the model is already a spec — no docstring needed for boundary and enum requirements:
+If you use Pydantic, the model definition is already a requirement specification:
 
 ```python
-from pydantic import BaseModel, Field
-from typing import Literal
-
 class OrderRequest(BaseModel):
-    amount: float = Field(gt=0, le=50_000, description="Order total")
+    amount: float = Field(gt=0, le=50_000)
     currency: Literal["USD", "EUR", "GBP", "INR"]
     user_id: int = Field(gt=0)
 ```
 
-Quell reads this and generates:
-- `BOUNDARY`: amount must be > 0 (test with `amount=0`)
-- `BOUNDARY`: amount must be `<= 50000` (test with `amount=50001`)
-- `ENUM_VALID`: currency must be one of four values (test with invalid string)
-- `BOUNDARY`: user_id must be > 0 (test with `user_id=0`)
+Quell reads the `Field` validators and `Literal` annotations directly — no docstring needed. This generates boundary tests for `amount` and `user_id`, and an enum test for `currency`. Four tests, zero extra documentation written.
 
-Four tests, zero docstrings written. The Pydantic model is the spec.
-
-## Combining Both
-
-The most complete specs combine function docstrings with Pydantic input models:
+Combining both gives you the best coverage:
 
 ```python
 class CreateOrderInput(BaseModel):
     amount: float = Field(gt=0)
     currency: Literal["USD", "EUR", "GBP"]
-    user_id: int = Field(gt=0)
 
 def create_order(data: CreateOrderInput) -> dict:
     """
-    Create a new order.
-
     Raises:
         UserNotFoundError: If data.user_id does not exist in the database.
-        InsufficientFundsError: If user account balance is below data.amount.
+        InsufficientFundsError: If user balance is below data.amount.
 
     Returns:
         dict with keys: order_id, status, created_at, total.
     """
 ```
 
-Pydantic handles input validation requirements (3 tests auto-generated).
-Docstring handles business logic requirements (2 MUST_RAISE + 1 MUST_RETURN).
+Pydantic handles input validation (auto-generated). The docstring handles business logic requirements that depend on external state (flagged for LLM or manual).
 
-## Anti-Patterns to Avoid
+## Anti-patterns
 
-**Vague exception descriptions:**
-```python
-# Bad — Quell can't construct a trigger input
-# Raises:
-#     Exception: If something goes wrong.
+A few things that reduce what Quell can extract:
 
-# Good
-# Raises:
-#     ValueError: If amount is negative or zero.
-```
+**Missing the condition:** `Raises: ValueError` with no explanation. Quell knows an exception should happen but not when. Use generic invalid inputs as a fallback, but a specific condition is better.
 
-**Missing the condition:**
-```python
-# Bad
-# Raises:
-#     ValueError
+**"If something goes wrong":** Too vague to generate a test input from. Worth documenting for human readers, but won't produce an auto-generated test.
 
-# Good
-# Raises:
-#     ValueError: If the input string is empty.
-```
+**Undocumented raises:** If your function raises but the docstring doesn't say so, Quell won't know. Make raises explicit — it's good documentation regardless.
 
-**Undocumented raises:**
-
-If your function can raise but the docstring doesn't document it, Quell won't know. Make raises explicit — it's good documentation and unlocks automatic test generation.
-
-## Running It
+## Trying it
 
 After writing or updating docstrings:
 
 ```bash
+pip install quelltest
 quell check src/ --no-llm
 ```
 
-See which requirements are covered and which aren't. With `--fix`:
+That shows you which requirements are covered and which aren't. With `--fix`:
 
 ```bash
 quell check src/ --fix --no-llm
 ```
 
-Quell generates and verifies tests for each uncovered requirement the rule engine can handle. The diagnostic report at `.quell/report.json` shows what was generated, what was skipped, and why.
-
-## The Mental Model Shift
-
-Instead of writing a function and then thinking "what should I test?", think of the docstring as your contract:
-
-1. Write `Raises:` for every exception condition
-2. Write `Returns:` for the output structure
-3. Run `quell check` to see which contracts have no test
-4. Run `quell check --fix` to generate them
-
-The docstring is no longer just documentation. It's the spec your tests are measured against.
+Quell generates and verifies tests for each uncovered requirement the rule engine can handle. The `.quell/report.json` diagnostic shows exactly what was generated, what was skipped, and why — without including your source code.
 
 ---
 
-*[Install Quell](https://pypi.org/project/quelltest/) and run it on your first file in under 2 minutes. [Quickstart guide](/docs/quickstart).*
+*[Quickstart guide](/docs/quickstart) — run it on your first file in under two minutes.*

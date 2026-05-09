@@ -33,21 +33,27 @@ export default function CookieBanner() {
     const stored = localStorage.getItem(CONSENT_KEY);
     if (!stored) {
       setVisible(true);
+      document.body.style.overflow = "hidden";
     } else {
       setGtagConsent(stored as "granted" | "denied");
     }
   }, []);
 
+  function dismiss() {
+    document.body.style.overflow = "";
+    setVisible(false);
+  }
+
   function accept() {
     localStorage.setItem(CONSENT_KEY, "granted");
     setGtagConsent("granted");
-    setVisible(false);
+    dismiss();
   }
 
   function decline() {
     localStorage.setItem(CONSENT_KEY, "denied");
     setGtagConsent("denied");
-    setVisible(false);
+    dismiss();
   }
 
   if (!visible) return null;
@@ -55,35 +61,39 @@ export default function CookieBanner() {
   return (
     <div
       role="dialog"
+      aria-modal="true"
       aria-label="Cookie consent"
-      className="fixed bottom-0 left-0 right-0 z-50 border-t border-[#1a1a1a] bg-black/95 backdrop-blur-md px-6 py-4"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 backdrop-blur-md bg-black/60"
     >
-      <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex-1">
-          <p className="text-[13px] text-[#888] leading-relaxed">
-            We use cookies to understand how visitors use Quell — page views, session length, and
-            which docs pages are most helpful.{" "}
-            <a
-              href="/docs/privacy"
-              className="text-[#555] underline underline-offset-2 hover:text-white transition-colors"
-            >
-              Privacy policy
-            </a>
-            . No ad tracking, ever.
-          </p>
+      <div className="bg-[#0d0d0d] border border-[#1e1e1e] rounded-2xl p-7 max-w-sm w-full shadow-2xl">
+        <div className="mb-1 text-xs font-semibold tracking-widest text-[#333] uppercase">
+          Before you continue
         </div>
-        <div className="flex items-center gap-3 shrink-0">
-          <button
-            onClick={decline}
-            className="text-xs text-[#444] hover:text-[#888] transition-colors px-3 py-1.5"
+        <h2 className="text-[#e2e2e2] font-bold text-lg mb-3 leading-snug">
+          We use analytics cookies
+        </h2>
+        <p className="text-[#666] text-sm leading-relaxed mb-6">
+          We track page views and which docs sections are actually useful — nothing
+          more. No ads, no third-party data brokers, no fingerprinting.{" "}
+          <a
+            href="/docs/privacy"
+            className="text-[#444] underline underline-offset-2 hover:text-[#777] transition-colors"
           >
-            Decline
-          </button>
+            Privacy policy
+          </a>
+        </p>
+        <div className="flex flex-col gap-2.5">
           <button
             onClick={accept}
-            className="text-xs bg-white text-black font-medium px-4 py-1.5 rounded-md hover:bg-neutral-200 transition-colors"
+            className="w-full bg-white text-black font-medium py-2.5 rounded-lg text-sm hover:bg-neutral-100 transition-colors"
           >
             Accept analytics
+          </button>
+          <button
+            onClick={decline}
+            className="w-full text-[#444] py-2 text-sm hover:text-[#777] transition-colors"
+          >
+            No thanks
           </button>
         </div>
       </div>

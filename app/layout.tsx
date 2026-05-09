@@ -104,7 +104,7 @@ export const metadata: Metadata = {
   },
   manifest: "/manifest.json",
   verification: {
-    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION,
+    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION ?? "NEFrOAkEZ_aACfCOjz3Roe4novytmcZ4vyU1JmJck74",
   },
 };
 

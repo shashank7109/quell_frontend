@@ -8,20 +8,13 @@ tags: ["ci", "github actions", "pytest", "quelltest", "devops"]
 
 # Adding Requirement Coverage to Your CI Pipeline in 5 Minutes
 
-Line coverage in CI is table stakes. But line coverage doesn't tell you whether your tests prove the requirements they cover.
+Line coverage in CI is table stakes. But high line coverage doesn't tell you whether your tests actually prove the behaviors they're supposed to cover. You can run every line with zero meaningful assertions and CI stays green.
 
-This guide shows how to add **requirement coverage** to your CI pipeline using Quell — a check that fails PRs when documented requirements lose their test coverage.
+This is how you add requirement coverage — a check that fails PRs when documented requirements lose their test coverage.
 
-## What You're Building
+No API key needed. No LLM calls. The whole thing runs with `--no-llm`.
 
-By the end of this guide your CI will:
-1. Scan for requirement gaps on every PR that touches Python files
-2. Fail if requirement coverage drops below a threshold
-3. Post a formatted coverage report as a PR comment (optional)
-
-No API key needed. No LLM calls. The entire pipeline runs with `--no-llm`.
-
-## Step 1: Add the Basic Check
+## Basic workflow
 
 Create `.github/workflows/quell.yml`:
 
@@ -47,49 +40,23 @@ jobs:
       - name: Install
         run: |
           pip install quelltest
-          pip install -e ".[dev]"   # install your project + test deps
+          pip install -e ".[dev]"
 
-      - name: Requirement coverage check
-        run: quell check src/ --no-llm --format json > quell_report.json
+      - name: Check requirement coverage
+        run: quell check src/ --no-llm --ci --threshold 0.80
 ```
 
-This runs the scan and writes the report to `quell_report.json`. It won't fail the build yet — we'll add the threshold next.
+The `--ci` flag exits with code 1 if coverage is below the threshold. The `--threshold` is a fraction — `0.80` means 80% of documented requirements must have a verified test.
 
-## Step 2: Fail on Coverage Drop
+That's the whole thing. PRs that drop coverage below 80% fail the check.
 
-Add a threshold step after the scan:
+## Adding a PR comment
 
-```yaml
-      - name: Requirement coverage check
-        run: quell check src/ --no-llm --format json > quell_report.json
-
-      - name: Enforce threshold
-        run: |
-          SCORE=$(python -c "import json; r=json.load(open('quell_report.json')); print(r['score'])")
-          THRESHOLD=0.80
-          python -c "
-          score = $SCORE
-          threshold = $THRESHOLD
-          if score < threshold:
-              print(f'Requirement coverage {score:.0%} is below threshold {threshold:.0%}')
-              exit(1)
-          print(f'Requirement coverage: {score:.0%} ✓')
-          "
-```
-
-Or use the built-in `--ci` flag (sets exit code 1 if below threshold):
-
-```bash
-quell check src/ --no-llm --ci --threshold 0.80
-```
-
-## Step 3: Post a PR Comment (Optional)
-
-The `quell pr` command posts a formatted comment directly on the PR:
+If you want the coverage report posted directly on the PR so authors know exactly what's uncovered:
 
 ```yaml
       - name: Post PR comment
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && always()
         run: |
           quell pr ${{ github.event.pull_request.number }} \
             --comment \
@@ -99,12 +66,12 @@ The `quell pr` command posts a formatted comment directly on the PR:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-The comment looks like this on your PR:
+The `always()` means the comment gets posted even when the threshold check fails — so the PR author can see which specific requirements caused the failure, not just "CI failed."
+
+The comment looks roughly like:
 
 ```
 🟡 Quell Report — PR #47
-
-**Add payment retry logic**
 
 Requirement coverage: 71% (15/21 covered)
 
@@ -119,106 +86,40 @@ Found 6 untested requirements:
 Fix locally: quell check src/ --fix
 ```
 
-If requirement coverage is 100%, no comment is posted (no noise on clean PRs).
+Nothing gets posted on PRs that hit 100% — no noise when everything's covered.
 
-## Step 4: Or Install Everything in One Command
+## One-command setup
 
 ```bash
 quell install --pr
 ```
 
-This generates and writes the full workflow to `.github/workflows/quell-pr.yml` in your project. Commit it and you're done.
+This generates the full workflow file at `.github/workflows/quell-pr.yml` and writes it to your project. Commit it and you're done.
 
-## Complete Workflow
+## Picking a threshold
 
-```yaml
-name: Quell Requirement Coverage
+The right answer depends on where you're starting from. Run `quell check src/ --no-llm` first to see your current score, then set the threshold at or just below it. Tightening over time is easier than starting too high and having to exclude half your codebase.
 
-on:
-  pull_request:
-    paths: ["**/*.py"]
-  push:
-    branches: [main]
+Rough starting points:
 
-permissions:
-  pull-requests: write
-  contents: read
+| Situation | Threshold |
+|-----------|-----------|
+| No baseline yet | `0.60` — see the lay of the land first |
+| Established project | `0.75` |
+| Payment / auth / data pipeline | `0.85` |
+| Greenfield project | `0.90` |
 
-jobs:
-  quell:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+Don't start at 1.0. You'll immediately find requirements that can't be auto-generated (external service calls, complex state setup) and have to carve out exceptions.
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+## Secrets
 
-      - name: Install Quell
-        run: pip install quelltest
+| Secret | Required? | Purpose |
+|--------|-----------|---------|
+| `GITHUB_TOKEN` | Yes — auto-provided | Post PR comments |
+| `QUELL_API_KEY` | No | Pro plan limits only |
 
-      - name: Install project
-        run: pip install -e ".[dev]"
-
-      - name: Check requirement coverage
-        run: quell check src/ --no-llm --ci --threshold 0.80
-
-      - name: Post PR comment
-        if: github.event_name == 'pull_request' && always()
-        run: |
-          quell pr ${{ github.event.pull_request.number }} \
-            --comment --no-llm
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-```
-
-The `always()` on the comment step means the report posts even when the threshold check fails — so the author can see exactly which requirements caused the failure.
-
-## Setting the Right Threshold
-
-Starting recommendations:
-
-| Project state | Threshold |
-|---------------|-----------|
-| No existing Quell baseline | `0.60` — get the lay of the land first |
-| Established project | `0.75` — reasonable starting gate |
-| High-confidence codebase | `0.85` — for payment/auth/data pipelines |
-| New greenfield project | `0.90` — spec-first from day one |
-
-Don't start at 100%. Run `quell check src/ --no-llm` first to see your current score, then set the threshold at or just below it. Tighten over time.
-
-## Caching for Speed
-
-Quell's scan is fast (under 10 seconds on most projects), but if you want to cache dependencies:
-
-```yaml
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: pip
-          cache-dependency-path: requirements*.txt
-
-      - run: pip install quelltest
-```
-
-## Secrets Required
-
-| Secret | Required | Purpose |
-|--------|----------|---------|
-| `GITHUB_TOKEN` | Yes (automatic) | Post PR comments |
-| `QUELL_API_KEY` | No | Only if using Pro plan limits |
-
-No `ANTHROPIC_API_KEY`, no `OPENAI_API_KEY`. The entire CI workflow runs with `--no-llm`.
-
-## The Result
-
-After adding this to CI, your team gets:
-- A failing check when requirements lose their tests
-- A PR comment listing exactly which requirements are uncovered
-- A clear signal: "fix these 3 requirements before merging"
-
-Requirement coverage becomes a first-class CI signal, just like line coverage — but measuring something that actually matters.
+No `ANTHROPIC_API_KEY`, no `OPENAI_API_KEY`. The CI workflow runs entirely with `--no-llm`.
 
 ---
 
-*[Read the full GitHub Actions docs](/docs/guides/github-actions) or [install Quell](https://pypi.org/project/quelltest/) to get started.*
+*[Full GitHub Actions docs](/docs/guides/github-actions) or `pip install quelltest` to start locally.*
