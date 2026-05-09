@@ -5,7 +5,8 @@ import Image from "next/image";
 import { MDXRemote } from "next-mdx-remote/rsc";
 import remarkGfm from "remark-gfm";
 import { getBlogPost, getAllBlogSlugs } from "@/lib/blog";
-import { components } from "@/components/docs/MdxComponents";
+import { blogComponents } from "@/components/blog/BlogMdxComponents";
+import { sanitizeMdxContent } from "@/lib/mdx-safe";
 import { ChevronLeft } from "lucide-react";
 import BlogViewCounter from "@/components/BlogViewCounter";
 
@@ -63,6 +64,11 @@ export default async function BlogPostPage({ params }: Props) {
   const { slug } = await params;
   const post = getBlogPost(slug);
   if (!post) notFound();
+
+  // Strip leading H1 (already rendered in header) and sanitize MDX prose
+  const contentBody = sanitizeMdxContent(
+    post.content.replace(/^#[^\n]*\n+/, "").trimStart()
+  );
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -133,10 +139,10 @@ export default async function BlogPostPage({ params }: Props) {
               <span className="text-[#222]">·</span>
               <BlogViewCounter slug={slug} />
             </div>
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight leading-snug mb-4">
+            <h1 className="text-2xl md:text-[2rem] font-bold tracking-tight leading-snug mb-4 text-[#e8e8e8]">
               {post.meta.title}
             </h1>
-            <p className="text-[#555] text-sm leading-relaxed">
+            <p className="text-[#666] text-base leading-relaxed font-serif">
               {post.meta.description}
             </p>
           </header>
@@ -144,8 +150,8 @@ export default async function BlogPostPage({ params }: Props) {
           {/* Content */}
           <article className="prose-custom">
             <MDXRemote
-              source={post.content}
-              components={components}
+              source={contentBody}
+              components={blogComponents}
               options={{ mdxOptions: { remarkPlugins: [remarkGfm] } }}
             />
           </article>

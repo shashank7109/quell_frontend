@@ -107,7 +107,7 @@ function BlogCard({ post, featured = false }: { post: BlogPost; featured?: boole
           {post.meta.category}
         </p>
         <h2 className={[
-          "font-bold text-white leading-snug mb-3 group-hover:text-[#ccc] transition-colors",
+          "font-bold text-[#e2e2e2] leading-snug mb-3 group-hover:text-[#bbb] transition-colors",
           featured ? "text-xl md:text-2xl" : "text-base",
         ].join(" ")}>
           {post.meta.title}
@@ -162,7 +162,7 @@ export default function BlogIndexPage() {
           {/* Header */}
           <div className="mb-10">
             <p className="text-xs font-medium tracking-widest text-[#333] uppercase mb-3">Blog</p>
-            <h1 className="text-3xl font-bold tracking-tight mb-2">
+            <h1 className="text-3xl font-bold tracking-tight mb-2 text-[#e8e8e8]">
               Python Testing & Requirement Coverage
             </h1>
             <p className="text-[#555] text-sm">

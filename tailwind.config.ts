@@ -25,6 +25,7 @@ const config: Config = {
       fontFamily: {
         sans: ["var(--font-inter)", "system-ui", "sans-serif"],
         mono: ["var(--font-mono)", "Menlo", "monospace"],
+        serif: ["var(--font-crimson)", "Georgia", "serif"],
       },
       backgroundImage: {
         "grid-pattern":

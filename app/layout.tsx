@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { Inter, JetBrains_Mono, Crimson_Pro } from "next/font/google";
 import GoogleAnalytics from "@/components/GoogleAnalytics";
 import CookieBanner from "@/components/CookieBanner";
 import "./globals.css";
@@ -14,6 +14,14 @@ const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
   variable: "--font-mono",
   display: "swap",
+});
+
+const crimsonPro = Crimson_Pro({
+  subsets: ["latin"],
+  variable: "--font-crimson",
+  display: "swap",
+  weight: ["400", "600", "700"],
+  style: ["normal", "italic"],
 });
 
 const BASE_URL = "https://quell.buildsbyshashank.tech";
@@ -171,7 +179,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`dark ${inter.variable} ${jetbrainsMono.variable}`}
+      className={`dark ${inter.variable} ${jetbrainsMono.variable} ${crimsonPro.variable}`}
     >
       <head>
         <script
