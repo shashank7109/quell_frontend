@@ -5,6 +5,12 @@ const CONSENT_KEY = "quell_cookie_consent";
 
 export type ConsentState = "granted" | "denied" | null;
 
+declare global {
+  interface Window {
+    gtag?: (...args: unknown[]) => void;
+  }
+}
+
 function setGtagConsent(state: "granted" | "denied") {
   if (typeof window === "undefined" || !window.gtag) return;
   window.gtag("consent", "update", {
