@@ -1,6 +1,6 @@
 ---
 title: Installation
-description: Install Quell and its optional extras for LLM, MCP, and local inference support.
+description: Install quelltest, verify it works, and authenticate the CLI.
 ---
 
 # Installation
@@ -8,76 +8,136 @@ description: Install Quell and its optional extras for LLM, MCP, and local infer
 ## Requirements
 
 - Python **3.11** or higher
-- `pytest` (for test verification — installed automatically)
+- A project with docstrings, Pydantic models, or PySpark schemas
 
 No mutation testing tool required. Quell reads specs, not mutation results.
 
-## Install from PyPI
+---
 
-```bash
-pip install quelltest
-```
+## Install
 
-<Callout type="info">
-  The PyPI package name is `quelltest`. The CLI command is `quell`.
-</Callout>
+<Steps>
+  <Step title="Create a virtual environment">
 
-## Recommended: use a virtual environment
+    ```bash
+    python -m venv .venv
+    ```
 
-```bash
-python -m venv .venv
-source .venv/bin/activate      # Linux/macOS
-.venv\Scripts\activate         # Windows
+    ```bash
+    # macOS / Linux
+    source .venv/bin/activate
 
-pip install quelltest
-```
+    # Windows
+    .venv\Scripts\activate
+    ```
 
-Or with `uv` (faster):
+    Or with `uv` (faster):
 
-```bash
-uv venv
-uv pip install quelltest
-```
+    ```bash
+    uv venv && uv pip install quelltest
+    ```
+
+  </Step>
+
+  <Step title="Install quelltest">
+
+    ```bash
+    pip install quelltest
+    ```
+
+    <Callout type="info">
+      The PyPI package is `quelltest`. The CLI command is `quell`. They're different names — this is intentional.
+    </Callout>
+
+  </Step>
+
+  <Step title="Verify the install">
+
+    ```bash
+    quell --version
+    ```
+
+    Expected output:
+
+    ```
+    quelltest 0.5.0
+    ```
+
+  </Step>
+
+  <Step title="Authenticate (one-time)">
+
+    ```bash
+    quell auth login
+    ```
+
+    This opens your browser to [quell.buildsbyshashank.tech/auth/login](https://quell.buildsbyshashank.tech/auth/login). Sign in with your Quell account, click **Authorize CLI**, and return to the terminal. Your credentials are saved to `~/.quell/credentials.json`.
+
+    <Callout type="tip">
+      No account yet? [Sign up free](https://quell.buildsbyshashank.tech/auth/sign-up) — no credit card required. The Hobby plan covers 500 requirements/month with the full rule engine, no API key needed.
+    </Callout>
+
+    To check who you're logged in as:
+
+    ```bash
+    quell auth status
+    ```
+
+    To log out:
+
+    ```bash
+    quell auth logout
+    ```
+
+  </Step>
+</Steps>
+
+---
 
 ## Optional extras
 
-### MCP server (AI agent integration)
+### PySpark schema scanning
 
 ```bash
-pip install "quelltest[mcp]"
+pip install "quelltest[pyspark]"
 ```
 
-Exposes Quell tools to Claude Code, Cursor, Devin, and any MCP-compatible agent.
+Required only if your project uses PySpark StructType schemas. The base install already handles docstrings and Pydantic models.
 
-### LLM configuration
+### LLM fallback
 
-Anthropic and OpenAI clients are included in the base install. Set your key to enable LLM-powered analysis of complex unstructured specs:
+The rule engine handles ~75% of requirements with no network call. For the rest, configure an LLM provider:
 
 ```bash
-export ANTHROPIC_API_KEY=sk-ant-...   # for Claude
-export OPENAI_API_KEY=sk-...          # for GPT-4
+export ANTHROPIC_API_KEY=sk-ant-...    # Claude
+export OPENAI_API_KEY=sk-...           # GPT-4
 ```
 
-### Local LLM (Ollama)
+Or add to `pyproject.toml`:
 
-Run without any cloud API key:
+```toml
+[tool.quell]
+llm_provider = "anthropic"
+```
+
+<Callout type="info">
+  `--no-llm` is the default. You have to explicitly configure a provider to enable LLM fallback. Without one, complex requirements are flagged but not sent anywhere.
+</Callout>
+
+---
+
+## CI environments
+
+In CI, skip `quell auth login` and use an API key instead:
 
 ```bash
-# Install Ollama: https://ollama.ai
-ollama pull codellama
-
-# Tell Quell to use Ollama in pyproject.toml:
-# llm_provider = "ollama"
+export QUELL_API_KEY=qk_live_...
+quell check src/ --no-llm --ci --threshold 0.80
 ```
 
-## Verify installation
+Get your API key from the [dashboard](https://quell.buildsbyshashank.tech/dashboard/api-keys).
 
-```bash
-quell --version
-# quelltest 0.4.0
-
-quell --help
-```
+---
 
 ## Updating
 
@@ -85,6 +145,8 @@ quell --help
 pip install --upgrade quelltest
 ```
 
-## Windows note
+---
 
-Quell runs natively on Windows. The CLI, verification engine, and AST-based spec readers all work without WSL.
+## Platform notes
+
+Quell runs natively on **macOS, Linux, and Windows**. No WSL required on Windows. The CLI, verification engine, and AST spec readers all work cross-platform.
