@@ -1,0 +1,139 @@
+---
+title: "Why We Built a Verification Engine Instead of Just Generating Tests"
+description: "Any tool can write a test that runs. We needed tests that prove something. Here's the engineering decision behind Quell's two-phase verification and why it makes all the difference."
+date: "2026-05-10"
+category: "Product"
+tags: ["quelltest", "testing", "open source", "engineering"]
+---
+
+# Why We Built a Verification Engine Instead of Just Generating Tests
+
+Every test generator has the same pitch: give us your code, get back tests. Green CI. Coverage badge goes up.
+
+What they don't say: the tests they generate are unverified. They run the code. They might assert something. But no one checks whether the test would actually fail if the thing being tested broke.
+
+We built Quell differently — and the verification engine is the reason.
+
+## The Problem With Generated Tests
+
+When you generate a test with an LLM or a template-based tool, you get something like:
+
+```python
+def test_process_payment():
+    result = process_payment(10.0, "USD")
+    assert result is not None
+    assert "status" in result
+```
+
+This test:
+- Runs the code ✓
+- Checks that something was returned ✓
+- Verifies that the `status` key exists ✓
+
+Does it prove the requirement "raises ValueError if amount <= 0"? No. It doesn't touch that code path at all.
+
+Coverage tools will mark `process_payment` as covered. The requirement is silently unverified. The test provides confidence it hasn't earned.
+
+## What Verification Actually Means
+
+A test proves a requirement if and only if it would **fail** when the requirement is violated.
+
+There's no way to know this from reading the test. You have to run the experiment:
+
+1. Take the original code — run the test. It should pass.
+2. Break the requirement — remove the guard, weaken the boundary, change the return value.
+3. Run the test again. If it fails, the test proves the requirement. If it still passes, it doesn't.
+
+This is the two-phase verification at the core of Quell's architecture.
+
+## How It Works in Practice
+
+For a `MUST_RAISE` requirement — "raises ValueError if amount is negative":
+
+**Phase 1:** Run the generated test against original source. If it fails (syntax error, wrong exception type, wrong arguments), the test is discarded immediately.
+
+**Phase 2:** Inject a violation — Quell comments out the `raise ValueError` statement in the exact function being tested, using AST line ranges to avoid touching other functions.
+
+```python
+# Original
+def process_payment(amount: float, currency: str) -> dict:
+    if amount <= 0:
+        raise ValueError(f"Amount must be positive, got {amount}")
+    ...
+
+# After violation injection
+def process_payment(amount: float, currency: str) -> dict:
+    # QUELL_VIOLATION_START
+    # if amount <= 0:
+    #     raise ValueError(f"Amount must be positive, got {amount}")
+    # QUELL_VIOLATION_END
+    ...
+```
+
+Run the test on violated code. If it passes, the test doesn't catch the violation — discard it. If it fails, the test is verified and written to disk.
+
+The `finally` block always restores the original source, no matter what:
+
+```python
+try:
+    _inject_violation(source_path, requirement)
+    result = _run_pytest(test_file)
+    return result.returncode != 0  # True = test failed = verification passed
+finally:
+    source_path.write_text(original_source)  # Always restored
+```
+
+This is the invariant we never break. No side effects, ever.
+
+## The Engineering Decision
+
+Building the verification engine cost us 3x as much development time as building the test generator alone. Every violation injector had to handle a different case:
+
+- `MUST_RAISE`: comment out the raise statement
+- `BOUNDARY`: weaken the Field validator (change `gt=0` to `gt=-1`)
+- `ENUM_VALID`: remove a value from the allowed list
+- `MUST_RETURN`: replace `return result` with `return None`
+- `NOT_NULL`: flip `nullable=False` to `nullable=True` in the StructField
+
+Each injection has to be precise — target the right function, the right statement, leave everything else intact. A sloppy injection that breaks adjacent code would cause phase 1 to fail on every test, making the verifier useless.
+
+We spent a week on the AST-based line range targeting alone, after the naive regex approach kept violating the wrong function when two functions had similar patterns.
+
+## What We Rejected
+
+**Option A: Trust the generated test.**
+Fast to build. Zero engineering cost. Also zero value — we'd be the fourth tool doing the same thing.
+
+**Option B: Run mutation testing after generation.**
+We considered having Quell generate tests, then run mutmut/Stryker to verify they kill mutants. Problem: mutation testing is slow (15-30 minutes on a real project), requires a full mutation run setup, and mutmut doesn't let you target a specific generated test against a specific mutant.
+
+**Option C: Verify only when the user asks.**
+A `--verify` flag that's off by default. This is what some tools do. We decided: if you're going to write a test to disk, it has to be verified. Unverified tests written silently is exactly the problem we're solving.
+
+## The Consequence of Getting This Right
+
+In testing Quell on real projects, unverified test generators produce tests where:
+- 15-30% pass phase 1 but fail phase 2 (run the code but don't prove the requirement)
+- 5-10% fail phase 1 entirely (wrong exception type, wrong arguments)
+
+If we skipped verification and wrote all generated tests to disk, roughly 1 in 5 would be providing false confidence — the coverage badge goes up, the requirement stays unproven.
+
+Verification catches both categories before anything hits disk.
+
+## The Tradeoff
+
+Verification is slower. Generating a test takes milliseconds. Verifying it takes 1-3 seconds (two pytest subprocess runs). On a file with 20 gaps, that's 20-60 seconds of verification time.
+
+We think this is the right tradeoff. Tests are written once and run thousands of times. A 60-second generation process that produces 20 verified, trustworthy tests is worth more than a 2-second process that produces 20 tests of unknown quality.
+
+The `--no-llm` flag cuts LLM latency entirely. The rule engine generates the test code in under 10ms. The bottleneck is always verification — which is the point.
+
+## Where We Go From Here
+
+The verification engine is what makes Quell's guarantee possible: every test written by Quell has been proven to fail when the requirement is violated.
+
+No other tool in the Python testing ecosystem makes this guarantee. That's not a criticism — it's a hard engineering problem. We built it because it's the only honest way to call a tool a test generator.
+
+---
+
+*The verification engine is open source. [Read the code on GitHub](https://github.com/shashank7109/quelltest_lib) or [try it on your project](/docs/quickstart).*

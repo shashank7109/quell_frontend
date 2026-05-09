@@ -10,6 +10,7 @@ export interface BlogMeta {
   date: string;
   slug: string;
   tags: string[];
+  category: string;
   readTime: number;
   ogImage?: string;
 }
@@ -44,6 +45,7 @@ export function getBlogPost(slug: string): BlogPost | null {
       date: data.date ?? "",
       slug,
       tags: data.tags ?? [],
+      category: data.category ?? "Article",
       readTime: estimateReadTime(content),
       ogImage: data.ogImage,
     },

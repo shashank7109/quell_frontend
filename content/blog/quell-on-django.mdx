@@ -1,0 +1,176 @@
+---
+title: "I Ran Quell on a Real Django Project. Here's Every Gap It Found."
+description: "A real case study: running quell check on a production Django REST API with 87% line coverage. Every untested requirement it surfaced, and what we fixed."
+date: "2026-05-10"
+category: "Case Study"
+tags: ["python", "django", "pytest", "quelltest", "case study"]
+---
+
+# I Ran Quell on a Real Django Project. Here's Every Gap It Found.
+
+Our Django REST API had 87% line coverage. We felt good about it. Then I ran `quell check` on the codebase and got a list of 23 untested requirements.
+
+Not coverage gaps. Not uncovered lines. **Requirements** — specific behaviors the code was supposed to have, stated in the docstrings, that no test actually verified.
+
+Here's what it found, what we fixed, and what we learned.
+
+## The Project
+
+Mid-sized Django REST API, about 18 months old. Stack: Django 4.2, Django REST Framework, PostgreSQL, pytest + factory_boy for tests. 87% line coverage across ~9,000 lines of Python.
+
+The team was proud of the test suite. It caught regressions. It had CI. It had a coverage badge.
+
+## Running Quell
+
+```bash
+pip install quelltest
+quell check src/ --no-llm
+```
+
+The scan takes about 8 seconds. No test execution, no network calls — purely AST-based. Output:
+
+```
+  Scanning 47 Python files...
+
+  views/payments.py
+    process_payment   MUST_RAISE   ValueError: amount <= 0           ✗ no test
+    process_payment   MUST_RAISE   ValueError: unsupported currency   ✗ no test
+    refund_payment    MUST_RAISE   PermissionError: non-owner refund  ✗ no test
+    refund_payment    MUST_RETURN  dict with refund_id key            ✗ no test
+
+  serializers/user.py
+    UserSerializer    ENUM_VALID   role: admin|editor|viewer          ✗ no test
+    UserSerializer    BOUNDARY     age must be >= 18                  ✗ no test
+
+  services/notifications.py
+    send_email        MUST_RAISE   ValueError: invalid email format   ✗ no test
+    send_sms          MUST_RAISE   ValueError: phone number too short ✗ no test
+    send_sms          MUST_RAISE   ValueError: non-numeric phone      ✗ no test
+
+  services/billing.py
+    create_invoice    MUST_RETURN  dict with invoice_id               ✗ no test
+    apply_discount    BOUNDARY     discount must be between 0 and 100 ✗ no test
+    apply_discount    BOUNDARY     discount cannot exceed subtotal     ✗ no test
+
+  ... 11 more across 6 files
+
+  Requirement coverage: 62% (37/60 covered)
+```
+
+62% requirement coverage with 87% line coverage. The gap was real.
+
+## What Was Actually Missing
+
+### Category 1: Exception path tests (9 gaps)
+
+The most common gap. Functions had documented `Raises:` blocks but no tests that triggered those exceptions.
+
+`process_payment` had this docstring:
+
+```python
+def process_payment(amount: float, currency: str) -> dict:
+    """
+    Raises:
+        ValueError: If amount is <= 0.
+        ValueError: If currency is not in SUPPORTED_CURRENCIES.
+    Returns:
+        dict with keys: transaction_id, status, timestamp.
+    """
+```
+
+Our existing tests:
+
+```python
+def test_process_payment_success():
+    result = process_payment(10.0, "USD")
+    assert result["status"] == "success"
+```
+
+That test ran the happy path. If someone removed the `if amount <= 0: raise ValueError(...)` guard tomorrow, all tests would still pass.
+
+### Category 2: Enum validation (4 gaps)
+
+DRF serializers used `ChoiceField` and `Literal` types, but no tests verified that invalid choices raised errors.
+
+```python
+class UserSerializer(serializers.Serializer):
+    role = serializers.ChoiceField(choices=["admin", "editor", "viewer"])
+```
+
+We had tests that created users with valid roles. Zero tests that verified invalid roles were rejected.
+
+### Category 3: Boundary conditions (6 gaps)
+
+The billing module had Pydantic models for discount and invoice validation. Quell found six untested boundary conditions across three functions — all documented in docstrings or `Field()` validators, none of them tested.
+
+### Category 4: Return structure (4 gaps)
+
+Several functions returned dicts with documented keys. We tested that the functions returned *something*, but not that the required keys were present. Breaking change waiting to happen.
+
+## Auto-Generating the Tests
+
+```bash
+quell check src/ --fix --no-llm
+```
+
+Of the 23 gaps, Quell generated and verified 18 tests automatically:
+
+```
+  process_payment   MUST_RAISE   ValueError: amount <= 0      ✓ verified → written
+  process_payment   MUST_RAISE   ValueError: bad currency     ✓ verified → written
+  refund_payment    MUST_RAISE   PermissionError              ✓ verified → written
+  UserSerializer    ENUM_VALID   role validation              ✓ verified → written
+  apply_discount    BOUNDARY     discount >= 0                ✓ verified → written
+  apply_discount    BOUNDARY     discount <= 100              ✓ verified → written
+  ...18 total
+
+  5 skipped (complex external state — database/HTTP dependencies)
+
+  18 tests written across 8 test files.
+  Your code never left your machine.
+```
+
+Each verified test passed on the real code AND failed when the requirement was violated. The 5 skipped requirements (involving database state or HTTP mocking) were flagged for manual implementation.
+
+## What We Found After the Tests Ran
+
+Three of the generated tests caught **real bugs** we didn't know existed:
+
+1. `apply_discount` with `discount=100` raised a `ZeroDivisionError`, not the documented `ValueError`. The docstring was correct; the implementation had an off-by-one.
+
+2. `send_sms` with an 8-digit phone number didn't raise `ValueError` — it silently truncated and sent to the wrong number.
+
+3. `refund_payment` allowed non-owners to initiate refunds in a specific code path that bypassed the permission check. The docstring said `PermissionError`, the test confirmed the guard was missing.
+
+The 87% coverage suite had been passing for 18 months while these bugs sat in production.
+
+## Requirement Coverage After
+
+```bash
+quell check src/ --no-llm
+```
+
+```
+  Requirement coverage: 95% (57/60 covered)
+  3 remaining gaps — flagged for manual implementation
+```
+
+Up from 62% to 95%. Total time: about 90 minutes including reviewing and committing the generated tests.
+
+## What We Changed Going Forward
+
+**Docstrings as specs first.** Before writing implementation, we now write the `Raises:` and `Returns:` blocks in the docstring. It forces clarity on what the function is supposed to do.
+
+**Quell in CI.** Added `quell check src/ --no-llm --format json` to the pipeline. PRs that drop requirement coverage below 90% fail.
+
+**Coverage badge is now secondary.** The requirement coverage number is what we track. Line coverage is a floor, not a target.
+
+## The Takeaway
+
+87% line coverage felt like a strong test suite. It wasn't. Requirement coverage at 62% meant almost 40% of our documented behaviors had no test that would catch a violation.
+
+Quell doesn't replace your test suite — it tells you which parts of it are actually proving something versus which parts are just running code.
+
+---
+
+*Run `quell check src/ --no-llm` on your own project — the scan takes under 10 seconds. [Install guide](/docs/quickstart).*

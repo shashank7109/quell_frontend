@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
+import { ArrowRight } from "lucide-react";
 import { getAllBlogPosts } from "@/lib/blog";
+import type { BlogPost } from "@/lib/blog";
 
 export const metadata: Metadata = {
   title: "Blog — Python Testing, Docstrings, and Requirement Coverage",
@@ -17,28 +19,122 @@ export const metadata: Metadata = {
   },
 };
 
-const TAG_COLORS: Record<string, string> = {
-  python: "bg-blue-950 text-blue-400",
-  pytest: "bg-green-950 text-green-400",
-  pyspark: "bg-orange-950 text-orange-400",
-  testing: "bg-purple-950 text-purple-400",
-  quelltest: "bg-[#1a1a1a] text-[#888]",
-  "test generation": "bg-[#1a1a1a] text-[#888]",
-  "code quality": "bg-[#1a1a1a] text-[#888]",
-  "data engineering": "bg-yellow-950 text-yellow-400",
+/* ── Per-category card header styles ── */
+const CATEGORY_STYLE: Record<string, { bg: string; icon: React.ReactNode }> = {
+  "Case Study": {
+    bg: "bg-[#c1440e]",
+    icon: (
+      <svg width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" className="text-[#e8724a]/60">
+        <circle cx="21" cy="21" r="12"/><line x1="30" y1="30" x2="42" y2="42"/>
+        <line x1="16" y1="21" x2="26" y2="21"/><line x1="21" y1="16" x2="21" y2="26"/>
+      </svg>
+    ),
+  },
+  "Product": {
+    bg: "bg-[#1b5e3b]",
+    icon: (
+      <svg width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" className="text-[#4ade80]/50">
+        <path d="M24 6l18 10v16L24 42 6 32V16z"/>
+        <path d="M24 42V26"/><path d="M42 16L24 26 6 16"/>
+      </svg>
+    ),
+  },
+  "Engineering": {
+    bg: "bg-[#1e3a5f]",
+    icon: (
+      <svg width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" className="text-[#60a5fa]/50">
+        <polyline points="14,18 6,24 14,30"/><polyline points="34,18 42,24 34,30"/>
+        <line x1="20" y1="8" x2="28" y2="40"/>
+      </svg>
+    ),
+  },
+  "Tutorial": {
+    bg: "bg-[#3b1f6b]",
+    icon: (
+      <svg width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" className="text-[#c084fc]/50">
+        <rect x="8" y="6" width="32" height="36" rx="3"/>
+        <line x1="16" y1="16" x2="32" y2="16"/><line x1="16" y1="22" x2="32" y2="22"/>
+        <line x1="16" y1="28" x2="24" y2="28"/>
+      </svg>
+    ),
+  },
+  "Data Engineering": {
+    bg: "bg-[#1a4a4a]",
+    icon: (
+      <svg width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" className="text-[#2dd4bf]/50">
+        <ellipse cx="24" cy="14" rx="14" ry="5"/>
+        <path d="M10 14v8c0 2.76 6.27 5 14 5s14-2.24 14-5v-8"/>
+        <path d="M10 22v8c0 2.76 6.27 5 14 5s14-2.24 14-5v-8"/>
+      </svg>
+    ),
+  },
+  "Article": {
+    bg: "bg-[#2a2a2a]",
+    icon: (
+      <svg width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" className="text-[#888]/50">
+        <rect x="8" y="6" width="32" height="36" rx="3"/>
+        <line x1="16" y1="16" x2="32" y2="16"/><line x1="16" y1="22" x2="32" y2="22"/>
+        <line x1="16" y1="28" x2="24" y2="28"/>
+      </svg>
+    ),
+  },
 };
 
-function TagBadge({ tag }: { tag: string }) {
-  const cls = TAG_COLORS[tag.toLowerCase()] ?? "bg-[#1a1a1a] text-[#555]";
+function getCategoryStyle(category: string) {
+  return CATEGORY_STYLE[category] ?? CATEGORY_STYLE["Article"];
+}
+
+function BlogCard({ post, featured = false }: { post: BlogPost; featured?: boolean }) {
+  const style = getCategoryStyle(post.meta.category);
+
   return (
-    <span className={`text-[10px] font-mono px-2 py-0.5 rounded ${cls}`}>
-      {tag}
-    </span>
+    <Link
+      href={`/blog/${post.meta.slug}`}
+      className={[
+        "group flex flex-col rounded-2xl overflow-hidden border border-[#1a1a1a]",
+        "hover:border-[#2a2a2a] transition-all duration-200 bg-[#0d0d0d]",
+        featured ? "md:col-span-2" : "",
+      ].join(" ")}
+    >
+      {/* Coloured header */}
+      <div className={`relative flex items-center justify-center ${style.bg} ${featured ? "h-52" : "h-36"} shrink-0`}>
+        {style.icon}
+      </div>
+
+      {/* Content */}
+      <div className="flex flex-col flex-1 p-5">
+        <p className="text-[10px] font-semibold tracking-widest text-[#555] uppercase mb-3">
+          {post.meta.category}
+        </p>
+        <h2 className={[
+          "font-bold text-white leading-snug mb-3 group-hover:text-[#ccc] transition-colors",
+          featured ? "text-xl md:text-2xl" : "text-base",
+        ].join(" ")}>
+          {post.meta.title}
+        </h2>
+        {featured && (
+          <p className="text-[#555] text-sm leading-relaxed mb-4 line-clamp-2">
+            {post.meta.description}
+          </p>
+        )}
+        <div className="mt-auto flex items-center justify-between pt-3 border-t border-[#111]">
+          <time className="text-xs text-[#333] font-mono">
+            {new Date(post.meta.date).toLocaleDateString("en-US", {
+              year: "numeric", month: "long", day: "numeric",
+            })}
+          </time>
+          <span className="text-xs text-[#333] group-hover:text-[#888] transition-colors flex items-center gap-1">
+            Read more <ArrowRight size={11} />
+          </span>
+        </div>
+      </div>
+    </Link>
   );
 }
 
 export default function BlogIndexPage() {
   const posts = getAllBlogPosts();
+  const [featured, ...rest] = posts;
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -61,46 +157,44 @@ export default function BlogIndexPage() {
       </nav>
 
       <main className="pt-24 pb-20 px-6">
-        <div className="max-w-3xl mx-auto">
-          <div className="mb-12">
+        <div className="max-w-5xl mx-auto">
+
+          {/* Header */}
+          <div className="mb-10">
             <p className="text-xs font-medium tracking-widest text-[#333] uppercase mb-3">Blog</p>
-            <h1 className="text-3xl font-bold tracking-tight mb-3">
+            <h1 className="text-3xl font-bold tracking-tight mb-2">
               Python Testing & Requirement Coverage
             </h1>
-            <p className="text-[#555] text-sm leading-relaxed">
-              Practical articles on spec-first testing, docstring-driven test generation,
-              PySpark schema validation, and building test suites that actually prove requirements.
+            <p className="text-[#555] text-sm">
+              Case studies, tutorials, and engineering decisions from the Quell team.
             </p>
           </div>
 
-          <div className="divide-y divide-[#0f0f0f]">
-            {posts.map((post) => (
-              <article key={post.meta.slug} className="py-8 group">
-                <Link href={`/blog/${post.meta.slug}`} className="block">
-                  <div className="flex items-center gap-3 mb-3">
-                    <time className="text-xs text-[#333] font-mono">
-                      {new Date(post.meta.date).toLocaleDateString("en-US", {
-                        year: "numeric", month: "long", day: "numeric",
-                      })}
-                    </time>
-                    <span className="text-[#222]">·</span>
-                    <span className="text-xs text-[#333] font-mono">{post.meta.readTime} min read</span>
-                  </div>
-                  <h2 className="text-lg font-semibold text-white group-hover:text-[#ccc] transition-colors mb-2 leading-snug">
-                    {post.meta.title}
-                  </h2>
-                  <p className="text-[#555] text-sm leading-relaxed mb-4 line-clamp-2">
-                    {post.meta.description}
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {post.meta.tags.map((tag) => (
-                      <TagBadge key={tag} tag={tag} />
-                    ))}
-                  </div>
-                </Link>
-              </article>
-            ))}
-          </div>
+          {posts.length === 0 ? (
+            <p className="text-[#333] text-sm">No posts yet.</p>
+          ) : (
+            <div className="space-y-4">
+              {/* Featured post + first sidebar */}
+              {posts.length >= 2 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <BlogCard post={posts[0]} featured={false} />
+                  <BlogCard post={posts[1]} featured={false} />
+                </div>
+              )}
+
+              {/* Remaining posts — 3-column grid */}
+              {posts.length > 2 && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {posts.slice(2).map((post) => (
+                    <BlogCard key={post.meta.slug} post={post} />
+                  ))}
+                </div>
+              )}
+
+              {/* Single post fallback */}
+              {posts.length === 1 && <BlogCard post={posts[0]} />}
+            </div>
+          )}
         </div>
       </main>
     </div>
