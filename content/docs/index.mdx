@@ -19,7 +19,7 @@ Quell reads your **specification** — the docstring that says "must raise Value
 
 <CardGroup>
   <Card title="Spec-first generation" icon="*">
-    Quell reads docstrings, Pydantic models, and bug descriptions. It extracts requirements, not implementation.
+    Quell reads docstrings, Pydantic models, PySpark schemas, and bug descriptions. It extracts requirements, not implementation.
   </Card>
   <Card title="Zero false positives" icon="+">
     Every generated test is verified in two phases: passes on correct code AND fails on violated code. Both are required.
@@ -28,7 +28,10 @@ Quell reads your **specification** — the docstring that says "must raise Value
     Tests are injected using libcst — a lossless concrete syntax tree. Your comments and spacing are untouched.
   </Card>
   <Card title="Privacy first" icon="@">
-    Code is never sent to any server unless you configure an LLM key. LLM is only called for complex unstructured specs — most requirements are handled by the rule engine with no network call.
+    Use `--no-llm` to guarantee no network calls. LLM is only called for complex unstructured specs when configured — most requirements are handled by the rule engine.
+  </Card>
+  <Card title="PR integration" icon="!">
+    `quell pr <N>` fetches a PR diff, checks coverage on changed files, and posts a formatted comment with a score emoji and gap table. One command: `quell install --pr`.
   </Card>
   <Card title="Diagnostic report" icon="~">
     Every `--fix` run writes `.quell/report.json` — a privacy-safe file recording where the rule engine succeeded and failed. No source code included. Safe to share.
@@ -60,6 +63,7 @@ Quell reads your **specification** — the docstring that says "must raise Value
 | Pydantic models | `Field(gt=0)`, `Field(min_length=1)`, `Literal["USD", "EUR", "GBP"]` |
 | Type annotations | `Literal["active", "inactive"]` function arguments |
 | Bug descriptions | `"payment accepts zero amount silently"` |
+| PySpark schemas | `StructType([StructField("amount", DoubleType(), nullable=False)])` |
 
 ## Quick install
 

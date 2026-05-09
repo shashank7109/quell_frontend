@@ -112,7 +112,7 @@ export default function Home() {
           <div className="py-6">
             <div className="inline-flex items-center gap-2 text-xs text-[#555] border border-[#1a1a1a] rounded-full px-3.5 py-1.5 mb-8 bg-[#0a0a0a]">
               <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-              quelltest 0.4.4 — live on PyPI
+              quelltest 0.5.0 — live on PyPI
             </div>
 
             <h1 className="text-4xl md:text-5xl font-bold tracking-tight leading-[1.1] mb-5">
@@ -208,6 +208,7 @@ export default function Home() {
           {[
             { label: "pytest", href: "https://pytest.org" },
             { label: "Pydantic", href: "https://docs.pydantic.dev" },
+            { label: "PySpark", href: "https://spark.apache.org/docs/latest/api/python/" },
             { label: "libcst", href: "https://libcst.readthedocs.io" },
             { label: "Claude", href: "https://anthropic.com" },
             { label: "GPT-4", href: "https://openai.com" },

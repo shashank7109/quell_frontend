@@ -5,6 +5,24 @@ description: Release history for the quelltest package.
 
 # Changelog
 
+## v0.5.0 — 2026-05
+
+**OAuth auth, PySpark reader, `quell pr`, `--no-llm`, GitHub Actions installer**
+
+- `quell auth login` — OAuth 2.0 PKCE browser flow, stores credentials at `~/.quell/credentials.json` (chmod 600). Single-session enforcement server-side.
+- `quell auth logout` / `quell auth status` — revoke token and check session state
+- `QUELL_API_KEY` env var — zero-config CI auth without browser
+- PySpark schema reader — AST-only `StructType` parsing, no `pyspark` import required at scan time. Generates `NOT_NULL` requirements for non-nullable columns and `TYPE_CHECK` requirements for all columns.
+- `NOT_NULL` and `TYPE_CHECK` ConstraintKinds — rule engine generates `pytest.raises` / `assertSchemaEqual` tests; auto-creates `conftest.py` with session-scoped `SparkSession`
+- `quell pr <N>` — fetches PR diff from GitHub API, runs spec readers on changed Python files, posts formatted comment with score emoji and gap table
+- `--no-llm` flag on `quell check` — disables all LLM calls, forces rule-based only. Prints "Your code never left your machine." after `--fix`.
+- `--format json` on `quell check` — machine-readable output for CI scripts
+- Method column in `quell check` output — shows `[rule-based, no network]` or `[llm]` per requirement
+- `quell install --hook` — writes pre-commit config to user's project
+- `quell install --pr` — writes GitHub Actions workflow YAML for PR comments
+- Zero-config default — `quell check` works with no `pyproject.toml` (defaults to rule-based, no LLM)
+- `pip install quelltest[pyspark]` — optional extra for running generated PySpark tests
+
 ## v0.4.4 — 2026-05
 
 **Rule engine improvements — 75% score on real-world projects**
