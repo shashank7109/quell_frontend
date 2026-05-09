@@ -15,11 +15,14 @@ import {
 import type { User } from "@/lib/api";
 import Badge from "@/components/ui/Badge";
 
+const ADMIN_EMAIL = "bindalshashank.89@gmail.com";
+
 const nav = [
-  { href: "/dashboard",            label: "Overview",  icon: LayoutDashboard, exact: true },
-  { href: "/dashboard/api-keys",   label: "API Keys",  icon: KeyRound },
-  { href: "/dashboard/usage",      label: "Usage",     icon: BarChart2 },
-  { href: "/dashboard/billing",    label: "Billing",   icon: CreditCard },
+  { href: "/dashboard",              label: "Overview",  icon: LayoutDashboard, exact: true, adminOnly: false },
+  { href: "/dashboard/api-keys",     label: "API Keys",  icon: KeyRound,         adminOnly: false },
+  { href: "/dashboard/usage",        label: "Usage",     icon: BarChart2,        adminOnly: false },
+  { href: "/dashboard/billing",      label: "Billing",   icon: CreditCard,       adminOnly: false },
+  { href: "/dashboard/analytics",    label: "Analytics", icon: BarChart2,        adminOnly: true  },
 ];
 
 const planTone = { hobby: "default", pro: "blue", team: "purple" } as const;
@@ -65,7 +68,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Nav links */}
         <nav className="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto">
-          {nav.map((item) => {
+          {nav.filter((item) => !item.adminOnly || user?.email === ADMIN_EMAIL).map((item) => {
             const Icon    = item.icon;
             const active  = isActive(item);
             return (
