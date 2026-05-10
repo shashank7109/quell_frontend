@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono, Crimson_Pro } from "next/font/google";
 import GoogleAnalytics from "@/components/GoogleAnalytics";
 import CookieBanner from "@/components/CookieBanner";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
 const inter = Inter({
@@ -191,6 +192,7 @@ export default function RootLayout({
         <GoogleAnalytics />
         {children}
         <CookieBanner />
+        <Analytics />
       </body>
     </html>
   );
