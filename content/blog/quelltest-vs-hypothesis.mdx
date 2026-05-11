@@ -1,0 +1,124 @@
+---
+title: "Quelltest vs Hypothesis: Two Different Questions About Your Code"
+description: "Hypothesis finds unexpected edge cases through random input generation. Quelltest proves your stated requirements are actually enforced. They answer different questions — and work well together."
+date: "2026-05-11"
+category: "Comparison"
+tags: ["hypothesis", "property-based testing", "pytest", "comparison", "quelltest"]
+author: "Shashank Bindal"
+authorUrl: "https://shashankbindal.me"
+---
+
+Both Quelltest and Hypothesis generate tests automatically. Both work with pytest. Both catch bugs that manually written tests miss. But they answer fundamentally different questions about your code.
+
+Understanding the difference will help you decide which to use — and why the answer is usually both.
+
+## The question Hypothesis asks
+
+Hypothesis asks: **"Are there input combinations I haven't thought of that break my code?"**
+
+It generates random inputs, shrinks them when it finds a failure, and over time builds a database of interesting edge cases for your specific codebase. The classic example:
+
+```python
+from hypothesis import given, strategies as st
+
+@given(st.floats(allow_nan=False, allow_infinity=False))
+def test_process_payment_never_crashes(amount):
+    try:
+        result = process_payment(amount, "USD")
+        assert result is not None
+    except ValueError:
+        pass  # expected for invalid amounts
+```
+
+This test runs `process_payment` with thousands of random floats. It will find `amount=0.0`, `amount=-1e-308`, `amount=float('nan')` if you forget to exclude it. It explores the space of inputs you didn't think to test.
+
+## The question Quelltest asks
+
+Quelltest asks: **"Do the requirements you already documented have a test that proves each one?"**
+
+It reads your existing docstrings and Pydantic models as specifications, then generates a specific test for each stated requirement — and verifies that test actually catches violations before writing it.
+
+```python
+def process_payment(amount: float, currency: str) -> PaymentResponse:
+    """
+    Raises:
+        ValueError: If amount is <= 0.
+        ValueError: If currency is not in SUPPORTED_CURRENCIES.
+    """
+```
+
+Quelltest extracts two requirements from this docstring. For the first, it generates:
+
+```python
+def test_process_payment_raises_valueerror_amount():
+    with pytest.raises(ValueError):
+        process_payment(amount=0, currency="USD")
+```
+
+Then verifies it: this test must pass on your code **and** fail when the `raise ValueError` is commented out. Only then is it written.
+
+## What each catches
+
+| Scenario | Hypothesis | Quelltest |
+|---|---|---|
+| `amount=-1e-308` not handled | ✅ may find it | ❌ not in spec |
+| Documented `Raises: ValueError: If amount <= 0` has no test | ❌ may miss it | ✅ always catches |
+| `Field(gt=0)` constraint not tested | ❌ not applicable | ✅ always catches |
+| Off-by-one in a boundary check | ✅ likely finds it | ✅ tests the boundary |
+| Concurrent access bug | ✅ with right strategy | ❌ out of scope |
+| Pydantic field validator not exercised | ❌ | ✅ |
+
+## The core difference: exploration vs verification
+
+Hypothesis explores the space of possible inputs looking for failures you didn't anticipate. Quelltest verifies that the failures you anticipated are actually enforced by a test.
+
+A codebase can have 100% Hypothesis coverage (no random input breaks it) while missing tests for requirements stated in docstrings. It can also have all docstring requirements verified by Quelltest while still having undocumented edge cases that Hypothesis would find.
+
+## Where they conflict
+
+They don't, really. But there is one overlap worth noting.
+
+Pydantic `Field(gt=0)` creates a validation constraint. Hypothesis with the `hypothesis-jsonschema` or direct `st.floats()` strategy will naturally test values ≤ 0 and find that `ValidationError` is raised. Quelltest generates a specific test for the same constraint.
+
+If you use both, you'll have two tests for the same requirement. That's not harmful — having a deterministic test (Quelltest) alongside a randomised one (Hypothesis) is actually good practice. The Quelltest version documents the requirement explicitly; the Hypothesis version keeps exploring.
+
+## Using them together
+
+```bash
+# Install both
+pip install quelltest hypothesis
+
+# Quelltest: verify every stated requirement has a proven test
+quell check src/ --fix --no-llm
+
+# Hypothesis: explore for undocumented edge cases
+# (add @given decorators to the generated test functions)
+```
+
+A practical workflow:
+
+1. Write code with docstrings that document requirements (`Raises:`, `Returns:`)
+2. Run `quell check src/ --fix` to generate and verify tests for every stated requirement
+3. Add `@given` decorators to the most critical functions to explore beyond the spec
+4. Both sets of tests run in the same `pytest` suite
+
+## When to reach for each
+
+**Reach for Quelltest when:**
+- You have Pydantic models with `Field` constraints that aren't tested
+- Your docstrings have `Raises:` blocks with no corresponding test
+- You want a CI gate on requirement coverage (`quell check src/ --ci --threshold 0.8`)
+- You want to verify tests actually prove something, not just execute code
+
+**Reach for Hypothesis when:**
+- You have pure functions with complex input spaces (parsers, serializers, algorithms)
+- You want to find edge cases you didn't think to document
+- You're writing a library where the input space is huge and user-controlled
+- You want shrinking — Hypothesis finds the *smallest* input that causes the failure
+
+## The short answer
+
+Hypothesis asks: "What inputs break my code?"
+Quelltest asks: "Do I have a verified test for every requirement I stated?"
+
+If you have documented requirements and no tests for them, start with Quelltest. If you have requirements tested but want to explore beyond them, add Hypothesis on top. Neither replaces the other.

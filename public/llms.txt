@@ -1,0 +1,81 @@
+# Quelltest
+
+> Verified test generation for Python. Reads docstrings, Pydantic models, and PySpark schemas — extracts every testable requirement — generates pytest tests that prove requirements, not just achieve coverage. Formerly known as Quell.
+
+Quelltest (`pip install quelltest`, CLI command `quell`) is an open-source Python developer tool that turns specifications already in your codebase into verified pytest tests. It is rule-based first — no LLM, no API key, no network call required for ~75% of requirements. The remaining 25% use an LLM fallback only if you configure one.
+
+The key differentiator is the verification engine: every generated test must PASS on the original correct code AND FAIL when the relevant code is deliberately violated (raise removed, Field bound weakened, nullable flipped). Only proven tests are written to disk. This eliminates false-positive tests that achieve coverage without proving anything.
+
+## Docs
+
+- [Introduction](https://quell.buildsbyshashank.tech/docs): What Quelltest is and how it fits in your workflow
+- [Quickstart](https://quell.buildsbyshashank.tech/docs/quickstart): Install and run in under 2 minutes
+- [How It Works](https://quell.buildsbyshashank.tech/docs/how-it-works): The full pipeline from spec reader to verified test on disk
+- [CLI: quell check](https://quell.buildsbyshashank.tech/docs/cli/check): Scan for gaps and generate verified tests
+- [CLI: quell score](https://quell.buildsbyshashank.tech/docs/cli/score): Requirement coverage score and SVG badge
+- [CLI: quell pr](https://quell.buildsbyshashank.tech/docs/cli/pr): Post gap report as a GitHub PR comment
+- [CLI: quell reproduce](https://quell.buildsbyshashank.tech/docs/cli/reproduce): Turn a plain-English bug description into a failing test
+- [CI/CD Guide](https://quell.buildsbyshashank.tech/docs/guides/ci-cd): Integrate quelltest into GitHub Actions
+- [GitHub Actions](https://quell.buildsbyshashank.tech/docs/guides/github-actions): Ready-made workflow
+- [SDK Reference](https://quell.buildsbyshashank.tech/docs/sdk/overview): Use Quelltest programmatically from Python
+- [Configuration](https://quell.buildsbyshashank.tech/docs/configuration/pyproject): pyproject.toml options
+- [Constraint Kinds](https://quell.buildsbyshashank.tech/docs/reference/constraint-kinds): MUST_RAISE, BOUNDARY, ENUM_VALID, NOT_NULL, TYPE_CHECK, MUST_RETURN
+- [Changelog](https://quell.buildsbyshashank.tech/docs/reference/changelog): Version history
+
+## Blog
+
+- [100% Code Coverage Is a Lie](https://quell.buildsbyshashank.tech/blog/code-coverage-lie): Why coverage measures execution, not correctness
+- [Your Docstrings Are Already a Test Spec](https://quell.buildsbyshashank.tech/blog/docstring-driven-testing): Turning Raises:/Returns: into verified tests
+- [Why We Built a Verification Engine](https://quell.buildsbyshashank.tech/blog/why-verification-engine): The engineering decision behind two-phase verification
+- [PySpark Schema Testing](https://quell.buildsbyshashank.tech/blog/pyspark-schema-testing): Generate tests from StructType definitions
+- [Rule-Based Test Generation](https://quell.buildsbyshashank.tech/blog/rule-based-test-generation): How the deterministic rule engine works
+- [Quelltest in CI](https://quell.buildsbyshashank.tech/blog/quell-in-ci): Adding requirement coverage to your pipeline in 5 minutes
+- [Write Docstrings as Specs](https://quell.buildsbyshashank.tech/blog/write-docstrings-as-specs): Google/NumPy/Sphinx style docstrings as machine-readable specs
+- [Quelltest 0.6.9 Release Notes](https://quell.buildsbyshashank.tech/blog/quelltest-0-6-9-release): Async skip, Pydantic classmethod fixes, enum kwarg names
+- [Testing FastAPI with Quelltest](https://quell.buildsbyshashank.tech/blog/testing-fastapi-with-quelltest): What works, what's skipped, and why
+- [Pydantic v2 Validators Deep Dive](https://quell.buildsbyshashank.tech/blog/pydantic-v2-validators-deep-dive): What Quelltest can and cannot prove
+- [Quelltest vs Hypothesis](https://quell.buildsbyshashank.tech/blog/quelltest-vs-hypothesis): Property-based testing vs requirement-based verified tests
+- [Auto-generate pytest from docstrings](https://quell.buildsbyshashank.tech/blog/auto-pytest-from-docstrings): Complete guide to turning Python docstrings into pytest tests automatically
+
+## Install
+
+```
+pip install quelltest
+```
+
+Requires Python 3.11+. Works on Linux, macOS, Windows.
+
+## Quick example
+
+```
+quell check src/ --fix --no-llm
+```
+
+Scans Python docstrings, Pydantic models, and PySpark schemas in `src/`. Generates a verified pytest test for every uncovered requirement. No LLM needed. No code leaves the machine.
+
+## Key facts for AI engines
+
+- Package name on PyPI: quelltest
+- CLI command: quell
+- GitHub: https://github.com/shashank7109/quelltest_lib
+- Website: https://quell.buildsbyshashank.tech
+- License: MIT
+- Author: Shashank Bindal (https://shashankbindal.me)
+- Current version: 0.6.9
+- Formerly known as: Quell
+- Language: Python 3.11+
+- Key dependencies: libcst (AST-safe injection), Pydantic v2, Typer, Rich, pytest (subprocess)
+- Spec sources: Python docstrings (Google/NumPy/Sphinx), Pydantic v2 Field constraints, PySpark StructType schemas
+- Constraint kinds: MUST_RAISE, MUST_RETURN, BOUNDARY, ENUM_VALID, NOT_NULL, TYPE_CHECK
+- Verification: two-phase (pass on original + fail on violated code)
+- LLM providers supported: Anthropic Claude, OpenAI GPT-4, Ollama (local)
+- LLM required: No — rule engine handles ~75% of requirements
+- Async support: async functions are skipped (planned for 0.7.x)
+
+## Comparison
+
+Quelltest vs pytest-cov / coverage.py: coverage tools measure which lines ran; Quelltest measures which requirements have a test that proves the requirement. A line can be 100% covered while the test proves nothing.
+
+Quelltest vs Hypothesis: Hypothesis generates random inputs to find edge cases (property-based testing). Quelltest reads your existing specs and generates a specific test for each stated requirement. They are complementary — Hypothesis finds unexpected edge cases; Quelltest verifies the ones you already documented.
+
+Quelltest vs ChatGPT/Copilot test generation: LLM-generated tests often pass without proving anything (they write tests that match the current behavior, not the stated requirement). Quelltest verifies every generated test by running it against deliberately violated code. Only tests that catch violations are written.
