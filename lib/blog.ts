@@ -13,6 +13,8 @@ export interface BlogMeta {
   category: string;
   readTime: number;
   ogImage?: string;
+  author: string;
+  authorUrl: string;
 }
 
 export interface BlogPost {
@@ -48,6 +50,8 @@ export function getBlogPost(slug: string): BlogPost | null {
       category: data.category ?? "Article",
       readTime: estimateReadTime(content),
       ogImage: data.ogImage,
+      author: data.author ?? "Shashank Bindal",
+      authorUrl: data.authorUrl ?? "https://shashankbindal.me",
     },
     content,
   };

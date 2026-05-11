@@ -1,0 +1,209 @@
+---
+title: "Pydantic v2 Validators: What Quelltest Can and Cannot Prove"
+description: "A deep dive into how Quelltest reads Pydantic v2 Field constraints, Literal types, and custom validators — and where it draws the line."
+date: "2026-05-05"
+category: "Deep Dive"
+tags: ["pydantic", "validators", "deep-dive", "v2", "field"]
+author: "Shashank Bindal"
+authorUrl: "https://shashankbindal.me"
+---
+
+Pydantic v2 is the most expressive way to embed requirements directly in Python code. A `Field(gt=0, le=10_000)` is not just a runtime guard — it is a machine-readable specification. Quelltest treats it exactly that way.
+
+This post covers which Pydantic v2 constructs Quelltest reads, what it generates, where the current limits are, and how to write Pydantic models that produce the best verified tests.
+
+## What Quelltest reads
+
+### Numeric bounds
+
+```python
+class OrderItem(BaseModel):
+    quantity: int = Field(ge=1, le=100)
+    unit_price: float = Field(gt=0)
+    discount: float = Field(ge=0, lt=1.0)
+```
+
+Quelltest extracts a `BOUNDARY` requirement for each bound:
+
+- `quantity`: must be ≥ 1 and ≤ 100
+- `unit_price`: must be > 0
+- `discount`: must be ≥ 0 and < 1.0
+
+For each requirement it generates two test functions: one that constructs a valid instance (should succeed) and one that violates the bound by one step (should raise `ValidationError`).
+
+The violation strategy is exact: for `ge=1`, the violation uses `quantity=0`. For `lt=1.0`, it uses `discount=1.0`. No fuzzing, no random values — deterministic, reproducible tests.
+
+### String constraints
+
+```python
+class UserProfile(BaseModel):
+    username: str = Field(min_length=3, max_length=32, pattern=r"^[a-z0-9_]+$")
+    bio: str = Field(max_length=500)
+```
+
+Quelltest generates `BOUNDARY` tests for `min_length` and `max_length`. The `pattern` constraint is currently logged as `skipped (regex)` in `report.json` — regex violations require generating a string that matches the pattern minus one character class, which the rule engine does not handle. This falls to the LLM if configured.
+
+### Literal types
+
+```python
+class Transaction(BaseModel):
+    status: Literal["pending", "processing", "completed", "failed"]
+    direction: Literal["credit", "debit"]
+```
+
+Quelltest generates `ENUM_VALID` tests for each `Literal` field. The test verifies that:
+
+1. Each valid value is accepted.
+2. An arbitrary invalid value (`"__invalid__"`) raises `ValidationError`.
+
+Two tests per field: one for valid values, one for invalid.
+
+### Optional fields with constraints
+
+```python
+class PaymentMethod(BaseModel):
+    card_last4: Optional[str] = Field(None, min_length=4, max_length=4)
+    expiry_month: Optional[int] = Field(None, ge=1, le=12)
+```
+
+`Optional[X]` fields with constraints are scanned. Quelltest generates boundary tests that pass `None` (should succeed) and values outside the constraint (should raise `ValidationError`).
+
+## What Quelltest cannot read (yet)
+
+### `@field_validator` and `@model_validator`
+
+```python
+class PaymentRequest(BaseModel):
+    amount: float
+    currency: str
+
+    @field_validator("currency")
+    @classmethod
+    def currency_must_be_supported(cls, v: str) -> str:
+        if v not in SUPPORTED_CURRENCIES:
+            raise ValueError(f"Currency {v!r} is not supported")
+        return v
+```
+
+Custom validators contain arbitrary logic. Quelltest cannot statically determine what conditions trigger the `raise` — that requires understanding `SUPPORTED_CURRENCIES` at runtime. These functions are currently skipped unless an LLM is configured.
+
+**Workaround**: document the constraint in the docstring as well:
+
+```python
+    @field_validator("currency")
+    @classmethod
+    def currency_must_be_supported(cls, v: str) -> str:
+        """
+        Raises:
+            ValueError: If v is not in SUPPORTED_CURRENCIES.
+        """
+        if v not in SUPPORTED_CURRENCIES:
+            raise ValueError(f"Currency {v!r} is not supported")
+        return v
+```
+
+Quelltest reads the `Raises:` section and generates a `MUST_RAISE` test for the validator.
+
+### Computed fields
+
+`@computed_field` is a v2 addition with no equivalent in v1. These fields are derived from other fields and have no `Field()` constraints — Quelltest skips them entirely.
+
+### Discriminated unions
+
+```python
+class Cat(BaseModel):
+    pet_type: Literal["cat"]
+    meows: int
+
+class Dog(BaseModel):
+    pet_type: Literal["dog"]
+    barks: int
+
+Pet = Annotated[Union[Cat, Dog], Field(discriminator="pet_type")]
+```
+
+Discriminated unions are scanned at the individual model level — `Cat` and `Dog` are both read normally. The union itself is not yet represented as a single requirement.
+
+## Writing Pydantic models for maximum Quelltest coverage
+
+### Use `Field()` explicitly
+
+```python
+# Quelltest cannot read implicit bounds
+class Bad(BaseModel):
+    amount: float  # no bounds — no requirements extracted
+
+# Quelltest reads these as BOUNDARY requirements
+class Good(BaseModel):
+    amount: float = Field(gt=0, description="Payment amount in the specified currency")
+```
+
+### Prefer `Literal` over `str` with validator
+
+```python
+# Quelltest cannot read this validator statically
+class WithValidator(BaseModel):
+    status: str
+
+    @field_validator("status")
+    @classmethod
+    def check_status(cls, v: str) -> str:
+        assert v in ("active", "inactive"), "Invalid status"
+        return v
+
+# Quelltest reads this as ENUM_VALID
+class WithLiteral(BaseModel):
+    status: Literal["active", "inactive"]
+```
+
+### Document what `Field()` cannot express
+
+For validators with runtime lookups, add a `Raises:` docstring:
+
+```python
+    @field_validator("country_code")
+    @classmethod
+    def must_be_iso3166(cls, v: str) -> str:
+        """
+        Raises:
+            ValueError: If v is not a valid ISO 3166-1 alpha-2 country code.
+        """
+        if not is_iso3166(v):
+            raise ValueError(f"Invalid country code: {v!r}")
+        return v
+```
+
+## Checking your coverage
+
+```bash
+quell check src/models/ --no-llm
+```
+
+The output breaks down requirements by source:
+
+```
+[pydantic]  BOUNDARY    OrderItem.quantity  ≥ 1, ≤ 100     ✓ covered
+[pydantic]  BOUNDARY    OrderItem.unit_price  > 0           ✗ uncovered
+[pydantic]  ENUM_VALID  Transaction.status                  ✓ covered
+[pydantic]  BOUNDARY    UserProfile.username  len 3-32      ✗ uncovered
+```
+
+Add `--fix` to generate and verify tests for every uncovered requirement:
+
+```bash
+quell check src/models/ --fix --no-llm
+```
+
+## Summary
+
+| Pydantic v2 construct | Quelltest reads? | Constraint kind |
+|---|---|---|
+| `Field(gt=, lt=, ge=, le=)` | ✓ | `BOUNDARY` |
+| `Field(min_length=, max_length=)` | ✓ | `BOUNDARY` |
+| `Literal["a", "b"]` | ✓ | `ENUM_VALID` |
+| `Optional[X]` with `Field` | ✓ | `BOUNDARY` |
+| `@field_validator` with docstring | ✓ | `MUST_RAISE` |
+| `@field_validator` without docstring | ✗ (LLM fallback) | — |
+| `Field(pattern=...)` | ✗ (LLM fallback) | — |
+| `@computed_field` | ✗ | — |
+| Discriminated union | partial | per-model only |

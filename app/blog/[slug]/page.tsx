@@ -84,7 +84,7 @@ export default async function BlogPostPage({ params }: Props) {
     },
     publisher: {
       "@type": "Organization",
-      name: "Quell",
+      name: "Quelltest",
       url: BASE_URL,
     },
     mainEntityOfPage: { "@type": "WebPage", "@id": `${BASE_URL}/blog/${slug}` },
@@ -102,7 +102,7 @@ export default async function BlogPostPage({ params }: Props) {
       <nav className="fixed top-0 w-full z-50 border-b border-[#111] bg-black/90 backdrop-blur-md">
         <div className="max-w-5xl mx-auto px-6 h-14 flex items-center justify-between">
           <Link href="/">
-            <Image src="/quell_logo.png" alt="Quell" width={76} height={24} className="h-6 w-auto" />
+            <Image src="/quell_logo.png" alt="Quelltest" width={76} height={24} className="h-6 w-auto" />
           </Link>
           <div className="hidden md:flex items-center gap-7 text-sm text-[#555]">
             <Link href="/#how-it-works" className="hover:text-white transition-colors">How it works</Link>
@@ -128,7 +128,7 @@ export default async function BlogPostPage({ params }: Props) {
 
           {/* Header */}
           <header className="mb-10">
-            <div className="flex items-center gap-3 mb-5 text-xs text-[#333] font-mono">
+            <div className="flex flex-wrap items-center gap-3 mb-5 text-xs text-[#333] font-mono">
               <time dateTime={post.meta.date}>
                 {new Date(post.meta.date).toLocaleDateString("en-US", {
                   year: "numeric", month: "long", day: "numeric",
@@ -138,6 +138,15 @@ export default async function BlogPostPage({ params }: Props) {
               <span>{post.meta.readTime} min read</span>
               <span className="text-[#222]">·</span>
               <BlogViewCounter slug={slug} />
+              <span className="text-[#222]">·</span>
+              <a
+                href={post.meta.authorUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-[#444] hover:text-[#888] transition-colors"
+              >
+                {post.meta.author}
+              </a>
             </div>
             <h1 className="text-2xl md:text-[2rem] font-bold tracking-tight leading-snug mb-4 text-[#e8e8e8]">
               {post.meta.title}
@@ -158,9 +167,9 @@ export default async function BlogPostPage({ params }: Props) {
 
           {/* Footer CTA */}
           <div className="mt-16 pt-8 border-t border-[#111]">
-            <p className="text-xs text-[#333] uppercase tracking-widest font-medium mb-4">Try Quell</p>
+            <p className="text-xs text-[#333] uppercase tracking-widest font-medium mb-4">Try Quelltest</p>
             <p className="text-[#555] text-sm mb-5">
-              Install Quell and run it on your codebase — no API key, no configuration.
+              Install Quelltest and run it on your codebase — no API key, no configuration.
             </p>
             <div className="flex flex-col sm:flex-row gap-3">
               <Link

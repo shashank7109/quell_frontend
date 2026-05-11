@@ -1,0 +1,65 @@
+---
+title: "Quelltest 0.6.9: Async Skip, Pydantic Classmethod Fixes, and Enum Kwarg Names"
+description: "What changed in 0.6.9, why it matters, and the three bugs it eliminates."
+date: "2026-05-10"
+category: "Release"
+tags: ["release", "changelog", "pydantic", "async", "bugfix"]
+author: "Shashank Bindal"
+authorUrl: "https://shashankbindal.me"
+---
+
+Quelltest 0.6.9 is out. It is a focused bug-fix release with no new features — just three root-cause fixes that were responsible for the majority of `verified=0` results on real codebases.
+
+## What changed
+
+### 1. Async functions are now skipped
+
+The rule engine was attempting to generate tests for `async def` functions. This caused two problems: the generated test called the coroutine synchronously (so it always failed phase 1), and the violation injection could leave the source in a bad state before the async event loop was set up correctly.
+
+**The fix**: the scanner now identifies `async def` at the AST level before dispatching to any rule. Async functions are logged as `skipped (async)` in `report.json` and never sent to the generator.
+
+This was the root cause of `verified=0` results on FastAPI backends where most route handlers are async.
+
+```python
+# Previously attempted — caused false failures
+async def create_payment(request: PaymentRequest) -> PaymentResponse:
+    """Returns: PaymentResponse with transaction_id."""
+    ...
+
+# 0.6.9: skipped cleanly, logged in report.json
+```
+
+### 2. Pydantic classmethod stub deduplication
+
+When a Pydantic model had both a `field_validator` and a `model_validator`, the stub generator was injecting the same `@classmethod` stub twice into the test file — once for each validator. This produced a `SyntaxError` on the second injection, which caused the entire test class to be rejected.
+
+The deduplication pass now runs before injection. If a `@classmethod` stub already exists in the target test class, it is not added again.
+
+### 3. Enum kwarg name fix
+
+`Field(default=Status.ACTIVE)` was being read as `Field(Status.ACTIVE)` because the stub parser was looking for positional args only. Enum field defaults passed as keyword arguments were silently dropped, producing an incomplete `ENUM_VALID` constraint with no values.
+
+The fix checks both `args` and `keywords` in the AST `Call` node for enum-typed defaults.
+
+## Why these three bugs
+
+All three stem from the same underlying assumption: that functions in the codebase are synchronous, standalone, and use only positional arguments. FastAPI and Pydantic v2 break all three assumptions systematically.
+
+## Upgrading
+
+```bash
+pip install --upgrade quelltest
+quell --version  # should print 0.6.9
+```
+
+No configuration changes needed. The `report.json` schema is unchanged — `skipped (async)` entries appear under the existing `skipped` key.
+
+## What's next
+
+The roadmap for 0.7.x includes:
+
+- Async test generation using `pytest-asyncio` (opt-in via `--async`)
+- TypeScript type reader for `zod` schemas
+- Stryker mutation result ingestion (the `mutation_reader` stub)
+
+Follow the repo or subscribe to the blog to get notified.

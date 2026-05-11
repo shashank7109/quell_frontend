@@ -1,10 +1,12 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Check, ArrowRight, Copy, CheckCheck } from "lucide-react";
+import { Check, ArrowRight, Copy, CheckCheck, ChevronDown } from "lucide-react";
 
-const plans = [
+type PricingRegion = "IN" | "INTL";
+
+const PLANS_INR = [
   {
     id: "hobby",
     name: "Hobby",
@@ -54,7 +56,61 @@ const plans = [
       "Priority support + SLA",
     ],
     cta: "Contact sales",
-    href: "mailto:hello@quell.dev",
+    href: "mailto:hello@queltest.dev",
+  },
+];
+
+const PLANS_USD = [
+  {
+    id: "hobby",
+    name: "Hobby",
+    price: "Free",
+    sub: "forever",
+    highlight: false,
+    features: [
+      "500 requirements / month",
+      "1 API key",
+      "Rule-based generation — no LLM key needed",
+      "Docstring, Pydantic & PySpark scanning",
+      "Diagnostic report (.quell/report.json)",
+      "Community support",
+    ],
+    cta: "Get started",
+    href: "/auth/sign-up",
+  },
+  {
+    id: "pro",
+    name: "Pro",
+    price: "$19",
+    sub: "/ month",
+    highlight: true,
+    features: [
+      "Unlimited requirements",
+      "5 API keys",
+      "LLM fallback (Claude & GPT-4)",
+      "Unlimited projects",
+      "PR comment reports",
+      "Usage analytics dashboard",
+      "Email support",
+    ],
+    cta: "Start free trial",
+    href: "/auth/sign-up?plan=pro",
+  },
+  {
+    id: "team",
+    name: "Team",
+    price: "$79",
+    sub: "/ month",
+    highlight: false,
+    features: [
+      "Everything in Pro",
+      "Unlimited API keys",
+      "10 team seats",
+      "SSO / SAML",
+      "Priority support + SLA",
+    ],
+    cta: "Contact sales",
+    href: "mailto:hello@queltest.dev",
   },
 ];
 
@@ -102,6 +158,41 @@ const SPEC_SOURCES = [
   },
 ];
 
+const FAQS = [
+  {
+    q: "Do I need an LLM API key to use Quelltest?",
+    a: "No. The rule-based engine covers ~75% of real-world requirements — MUST_RAISE, MUST_RETURN, BOUNDARY, ENUM_VALID, NOT_NULL, TYPE_CHECK — with zero network calls. An LLM key is optional and only used as a fallback for complex cases the rule engine cannot handle.",
+  },
+  {
+    q: "What Python versions are supported?",
+    a: "Quelltest requires Python 3.11 or later. It works on Linux, macOS, and Windows. Install via pip: pip install quelltest.",
+  },
+  {
+    q: "Does my source code ever leave my machine?",
+    a: "Never, unless you explicitly configure an LLM provider. The rule engine operates entirely locally — pure AST analysis. If LLM fallback is enabled, only the specific function signature and docstring are sent, never your full codebase. The diagnostic report (.quell/report.json) contains no source code and is safe to share.",
+  },
+  {
+    q: "How is Quelltest different from coverage.py or pytest-cov?",
+    a: "Coverage tools measure which lines of code were executed during tests — not whether the tests actually prove anything meaningful. Quelltest measures requirement coverage: how many of the testable claims in your docstrings, Pydantic models, and schemas have a verified test. A line can be covered while the test catches nothing.",
+  },
+  {
+    q: "What does 'verified' mean exactly?",
+    a: "Every generated test goes through two phases before it's written to disk. Phase 1: the test must PASS on the original, correct code. Phase 2: Quelltest injects a targeted violation (comments out the raise, weakens a Field bound, flips nullable) and the test must FAIL on that mutated code. A test that passes both phases is verified — it proves the requirement, not just executes it.",
+  },
+  {
+    q: "Can I run Quelltest in CI/CD?",
+    a: "Yes. Use quell check src/ --ci --threshold 0.80 to fail the pipeline if requirement coverage drops below 80%. quell install --pr writes a ready-made GitHub Actions workflow to your repo. The quell pr <PR_NUMBER> --comment command posts a coverage gap report directly as a PR comment.",
+  },
+  {
+    q: "Does Quelltest work with FastAPI or async code?",
+    a: "Quelltest scans synchronous Python functions and class methods. Async functions are intentionally skipped to avoid false stub injections — async code typically has different testing patterns. Support for async scanning is on the roadmap.",
+  },
+  {
+    q: "What is the difference between Quell and Quelltest?",
+    a: "They are the same product. The tool was originally released as Quell and is now rebranded as Quelltest. The PyPI package (pip install quelltest), the CLI command (quell), and all functionality remain identical.",
+  },
+];
+
 function CopyCommand() {
   const [copied, setCopied] = useState(false);
   const cmd = "pip install quelltest";
@@ -127,17 +218,62 @@ function CopyCommand() {
   );
 }
 
+function FaqItem({ q, a }: { q: string; a: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="border-b border-[#111] last:border-0">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between gap-4 py-5 text-left group"
+      >
+        <span className="text-[#ccc] text-sm font-medium group-hover:text-white transition-colors leading-snug">
+          {q}
+        </span>
+        <ChevronDown
+          size={15}
+          className={`text-[#444] flex-shrink-0 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+      {open && (
+        <p className="text-[#555] text-sm leading-relaxed pb-5 pr-8">
+          {a}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function Home() {
+  const [region, setRegion] = useState<PricingRegion>("IN");
+  const [geoLoaded, setGeoLoaded] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/geo")
+      .then((r) => r.json())
+      .then((data: { country?: string }) => {
+        setRegion(data.country === "IN" ? "IN" : "INTL");
+        setGeoLoaded(true);
+      })
+      .catch(() => setGeoLoaded(true));
+  }, []);
+
+  const plans = region === "IN" ? PLANS_INR : PLANS_USD;
+  const priceNote =
+    region === "IN"
+      ? "Prices in INR. Payments via Razorpay — UPI, cards, net banking."
+      : "Prices in USD. Payments via Stripe.";
+
   return (
     <div className="min-h-screen bg-black text-white">
 
       {/* ── Navbar ── */}
       <nav className="fixed top-0 w-full z-50 border-b border-[#111] bg-black/90 backdrop-blur-md">
         <div className="max-w-5xl mx-auto px-6 h-14 flex items-center justify-between">
-          <Image src="/quell_logo.png" alt="Quell" width={76} height={24} className="h-6 w-auto" priority />
+          <Image src="/quell_logo.png" alt="Quelltest" width={76} height={24} className="h-6 w-auto" priority />
           <div className="hidden md:flex items-center gap-7 text-sm text-[#555]">
             <Link href="#how-it-works" className="hover:text-white transition-colors">How it works</Link>
             <Link href="#pricing" className="hover:text-white transition-colors">Pricing</Link>
+            <Link href="#faq" className="hover:text-white transition-colors">FAQ</Link>
             <Link href="/docs" className="hover:text-white transition-colors">Docs</Link>
             <Link href="/blog" className="hover:text-white transition-colors">Blog</Link>
             <a href="https://github.com/shashank7109/quelltest_lib" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">GitHub</a>
@@ -159,7 +295,7 @@ export default function Home() {
           <div className="py-6">
             <div className="inline-flex items-center gap-2 text-xs text-[#555] border border-[#1a1a1a] rounded-full px-3.5 py-1.5 mb-8 bg-[#0a0a0a]">
               <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-              quelltest 0.5.0 — PySpark schema scanning live
+              quelltest 0.6.9 — async skip + Pydantic classmethod fixes
             </div>
 
             <h1 className="text-4xl md:text-5xl font-bold tracking-tight leading-[1.1] mb-5">
@@ -167,11 +303,11 @@ export default function Home() {
               <br />
               <span className="text-[#444]">your code should do.</span>
               <br />
-              Quell proves it.
+              Quelltest proves it.
             </h1>
 
             <p className="text-[#666] text-base leading-relaxed mb-8 max-w-[430px]">
-              Quell reads your Python docstrings, Pydantic models, and PySpark schemas —
+              Quelltest reads your Python docstrings, Pydantic models, and PySpark schemas —
               extracts every testable requirement — generates verified pytest tests that
               actually prove each one. Two-phase verification before anything touches disk.
               No LLM key required.
@@ -279,7 +415,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* ── What Quell reads ── */}
+      {/* ── What Quelltest reads ── */}
       <section className="py-16 px-6 border-t border-[#111]">
         <div className="max-w-5xl mx-auto">
           <div className="mb-10">
@@ -295,7 +431,6 @@ export default function Home() {
                 key={src.title}
                 className="rounded-xl border border-[#1a1a1a] bg-[#0a0a0a] overflow-hidden"
               >
-                {/* colored header */}
                 <div
                   className="flex items-center gap-3 px-5 py-4"
                   style={{ backgroundColor: src.color }}
@@ -307,7 +442,6 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* body */}
                 <div className="px-5 py-4">
                   <p className="font-mono text-[11px] text-[#444] bg-[#060606] border border-[#111] rounded px-3 py-2 mb-4 leading-relaxed">
                     {src.example}
@@ -346,7 +480,7 @@ export default function Home() {
               {
                 n: "01",
                 title: "Read specs from three sources",
-                body: "Quell scans Python docstrings (Raises:, Returns:, Args: sections), Pydantic models (Field validators, Literal type annotations), and PySpark StructType definitions — all via AST, no imports, no test execution.",
+                body: "Quelltest scans Python docstrings (Raises:, Returns:, Args: sections), Pydantic models (Field validators, Literal type annotations), and PySpark StructType definitions — all via AST, no imports, no test execution.",
                 snippet: [
                   { t: "dim", v: "$ " },
                   { t: "white", v: "quell check src/ --no-llm" },
@@ -378,7 +512,7 @@ export default function Home() {
               {
                 n: "03",
                 title: "Verify before writing — the moat",
-                body: "Every generated test must PASS on correct code AND FAIL on violated code. Quell injects targeted violations per constraint kind — comments out the raise, weakens the Field bound, flips nullable — then runs both phases in subprocess isolation.",
+                body: "Every generated test must PASS on correct code AND FAIL on violated code. Quelltest injects targeted violations per constraint kind — comments out the raise, weakens the Field bound, flips nullable — then runs both phases in subprocess isolation.",
                 snippet: [
                   { t: "green", v: "  ✓ phase 1: passes on original code" },
                   { t: "nl" },
@@ -435,7 +569,7 @@ export default function Home() {
             </h2>
             <p className="text-[#555] text-sm leading-relaxed">
               Most test generation tools send your code to an LLM and hope for the best.
-              Quell inverts this. Every constraint kind has a deterministic rule-based generator —
+              Quelltest inverts this. Every constraint kind has a deterministic rule-based generator —
               no network call, no hallucinations, no API key. The rule engine covers ~75% of
               real requirements. LLM handles the rest — only if you configure one.
             </p>
@@ -523,7 +657,7 @@ export default function Home() {
               Every run generates a diagnostic report.
             </h2>
             <p className="text-[#555] text-sm leading-relaxed">
-              After every <code className="text-[#888] font-mono text-xs">--fix</code> run, Quell writes{" "}
+              After every <code className="text-[#888] font-mono text-xs">--fix</code> run, Quelltest writes{" "}
               <code className="text-[#888] font-mono text-xs">.quell/report.json</code> — a
               privacy-safe file recording where the rule engine succeeded, what it skipped,
               and which argument types it couldn&apos;t stub. No source code. Safe to share.
@@ -531,7 +665,7 @@ export default function Home() {
           </div>
           <div className="bg-[#080808] border border-[#111] rounded-xl px-5 py-4 font-mono text-xs leading-[1.9]">
             <p className="text-[#333]">{"{"}</p>
-            <p className="pl-4"><span className="text-[#555]">&quot;quell_version&quot;</span><span className="text-[#333]">: </span><span className="text-[#888]">&quot;0.5.0&quot;</span><span className="text-[#333]">,</span></p>
+            <p className="pl-4"><span className="text-[#555]">&quot;quell_version&quot;</span><span className="text-[#333]">: </span><span className="text-[#888]">&quot;0.6.9&quot;</span><span className="text-[#333]">,</span></p>
             <p className="pl-4"><span className="text-[#555]">&quot;written&quot;</span><span className="text-[#333]">: </span><span className="text-green-600">6</span><span className="text-[#333]">,</span></p>
             <p className="pl-4"><span className="text-[#555]">&quot;fails_on_correct&quot;</span><span className="text-[#333]">: </span><span className="text-yellow-700">0</span><span className="text-[#333]">,</span></p>
             <p className="pl-4"><span className="text-[#555]">&quot;doesnt_catch_violation&quot;</span><span className="text-[#333]">: </span><span className="text-green-600">0</span><span className="text-[#333]">,</span></p>
@@ -575,7 +709,9 @@ export default function Home() {
                 <div className="mb-6">
                   <p className="text-[#888] text-xs font-medium uppercase tracking-wider mb-3">{plan.name}</p>
                   <div className="flex items-baseline gap-1">
-                    <span className="text-3xl font-bold text-[#e2e2e2]">{plan.price}</span>
+                    <span className={`text-3xl font-bold text-[#e2e2e2] transition-opacity duration-300 ${geoLoaded ? "opacity-100" : "opacity-0"}`}>
+                      {plan.price}
+                    </span>
                     <span className="text-[#444] text-sm">{plan.sub}</span>
                   </div>
                 </div>
@@ -604,7 +740,40 @@ export default function Home() {
           </div>
 
           <p className="text-[#333] text-xs mt-6 text-center">
-            Prices in INR. Payments via Razorpay — UPI, cards, net banking.
+            {geoLoaded ? priceNote : "Loading pricing for your region…"}
+          </p>
+        </div>
+      </section>
+
+      {/* ── FAQ ── */}
+      <section id="faq" className="py-20 px-6 border-t border-[#111]">
+        <div className="max-w-3xl mx-auto">
+          <div className="mb-12">
+            <p className="text-xs font-medium tracking-widest text-[#333] uppercase mb-3">FAQ</p>
+            <h2 className="text-2xl md:text-3xl font-bold text-[#e2e2e2] tracking-tight">
+              Frequently asked questions.
+            </h2>
+          </div>
+          <div>
+            {FAQS.map((faq) => (
+              <FaqItem key={faq.q} q={faq.q} a={faq.a} />
+            ))}
+          </div>
+          <p className="text-[#333] text-sm mt-10">
+            More questions?{" "}
+            <a
+              href="https://github.com/shashank7109/quelltest_lib/discussions"
+              target="_blank"
+              rel="noreferrer"
+              className="text-[#555] hover:text-white transition-colors underline underline-offset-2"
+            >
+              Open a discussion on GitHub
+            </a>{" "}
+            or{" "}
+            <a href="mailto:hello@queltest.dev" className="text-[#555] hover:text-white transition-colors underline underline-offset-2">
+              email us
+            </a>
+            .
           </p>
         </div>
       </section>
@@ -612,14 +781,18 @@ export default function Home() {
       {/* ── Footer ── */}
       <footer className="py-10 px-6 border-t border-[#111]">
         <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2.5">
-            <Image src="/quell_icon.png" alt="Quell" width={16} height={16} className="opacity-40" />
-            <span className="text-[#333] text-sm">© 2026 Quell. MIT License.</span>
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2.5">
+              <Image src="/quell_icon.png" alt="Quelltest" width={16} height={16} className="opacity-40" />
+              <span className="text-[#333] text-sm">© 2026 Quelltest. MIT License.</span>
+            </div>
+            <span className="text-[#222] text-xs pl-6">Formerly Quell.</span>
           </div>
           <div className="flex items-center gap-6 text-sm text-[#333]">
             <a href="https://github.com/shashank7109/quelltest_lib" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">GitHub</a>
             <Link href="/docs" className="hover:text-white transition-colors">Docs</Link>
             <Link href="/blog" className="hover:text-white transition-colors">Blog</Link>
+            <Link href="#faq" className="hover:text-white transition-colors">FAQ</Link>
             <Link href="/auth/sign-in" className="hover:text-white transition-colors">Sign in</Link>
           </div>
         </div>
