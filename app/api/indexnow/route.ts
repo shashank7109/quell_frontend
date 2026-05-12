@@ -17,7 +17,7 @@ import { getAllBlogSlugs } from "@/lib/blog";
 
 const HOST = "quell.buildsbyshashank.tech";
 const BASE = `https://${HOST}`;
-const INDEXNOW_KEY = "q8f3a2b9c4d6e1f7";
+const INDEXNOW_KEY = "b455a2db597341278f81e8d38f901747";
 const KEY_LOCATION = `${BASE}/${INDEXNOW_KEY}.txt`;
 
 // IndexNow is supported by Bing, Yandex, Seznam, Naver.

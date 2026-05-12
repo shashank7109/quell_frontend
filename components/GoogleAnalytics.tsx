@@ -6,8 +6,9 @@ const GA_ID = process.env.NEXT_PUBLIC_GA_ID || "G-T6MZDNY8R3";
 export default function GoogleAnalytics() {
   return (
     <>
-      {/* Google Consent Mode v2 — default denied until user accepts */}
-      <Script id="ga-consent-default" strategy="beforeInteractive">
+      {/* Consent Mode v2 + restore — afterInteractive so it doesn't block render.
+          GA itself is afterInteractive too, so these run first (document order). */}
+      <Script id="ga-consent-init" strategy="afterInteractive">
         {`
           window.dataLayer = window.dataLayer || [];
           function gtag(){dataLayer.push(arguments);}
@@ -19,20 +20,12 @@ export default function GoogleAnalytics() {
             wait_for_update: 500,
           });
           gtag('js', new Date());
-        `}
-      </Script>
-
-      {/* Restore consent from localStorage before GA4 fires */}
-      <Script id="ga-consent-restore" strategy="beforeInteractive">
-        {`
-          (function() {
-            try {
-              var consent = localStorage.getItem('quell_cookie_consent');
-              if (consent === 'granted') {
-                gtag('consent', 'update', { analytics_storage: 'granted' });
-              }
-            } catch(e) {}
-          })();
+          try {
+            var consent = localStorage.getItem('quell_cookie_consent');
+            if (consent === 'granted') {
+              gtag('consent', 'update', { analytics_storage: 'granted' });
+            }
+          } catch(e) {}
         `}
       </Script>
 

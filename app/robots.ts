@@ -18,12 +18,12 @@ export default function robots(): MetadataRoute.Robots {
         ],
       },
       {
-        // Googlebot gets explicit allow for the IndexNow key file
-        userAgent: "Googlebot",
-        allow: ["/q8f3a2b9c4d6e1f7.txt"],
+        // All crawlers (Bingbot, Googlebot, etc.) must be able to fetch the
+        // IndexNow key verification file.
+        userAgent: "*",
+        allow: ["/b455a2db597341278f81e8d38f901747.txt"],
       },
     ],
     sitemap: `${BASE}/sitemap.xml`,
-    host: BASE,
   };
 }

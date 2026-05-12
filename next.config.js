@@ -1,5 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Use browserslist config from package.json to avoid legacy JS transpilation
+  experimental: {
+    browsersListForSwc: true,
+  },
   async rewrites() {
     const backendUrl = process.env.BACKEND_URL;
     if (!backendUrl) return [];
