@@ -32,70 +32,64 @@ export default function CookieBanner() {
   useEffect(() => {
     const stored = localStorage.getItem(CONSENT_KEY);
     if (!stored) {
-      setVisible(true);
-      document.body.style.overflow = "hidden";
+      // Small delay so the banner slides in after the page paint —
+      // page content is fully rendered and crawlable before this runs.
+      const t = setTimeout(() => setVisible(true), 800);
+      return () => clearTimeout(t);
     } else {
       setGtagConsent(stored as "granted" | "denied");
     }
   }, []);
 
-  function dismiss() {
-    document.body.style.overflow = "";
-    setVisible(false);
-  }
-
   function accept() {
     localStorage.setItem(CONSENT_KEY, "granted");
     setGtagConsent("granted");
-    dismiss();
+    setVisible(false);
   }
 
   function decline() {
     localStorage.setItem(CONSENT_KEY, "denied");
     setGtagConsent("denied");
-    dismiss();
+    setVisible(false);
   }
 
   if (!visible) return null;
 
   return (
+    // Bottom-left floating card — does NOT cover page content, does NOT lock scroll.
+    // Googlebot sees the full page before this mounts (SSR + delayed client paint).
     <div
-      role="dialog"
-      aria-modal="true"
+      role="region"
       aria-label="Cookie consent"
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 backdrop-blur-md bg-black/60"
+      className="fixed bottom-4 left-4 z-50 max-w-[320px] w-[calc(100vw-2rem)]
+                 bg-[#0d0d0d] border border-[#1e1e1e] rounded-xl p-5 shadow-2xl
+                 animate-slide-up"
     >
-      <div className="bg-[#0d0d0d] border border-[#1e1e1e] rounded-2xl p-7 max-w-sm w-full shadow-2xl">
-        <div className="mb-1 text-xs font-semibold tracking-widest text-[#333] uppercase">
-          Before you continue
-        </div>
-        <h2 className="text-[#e2e2e2] font-bold text-lg mb-3 leading-snug">
-          We use analytics cookies
-        </h2>
-        <p className="text-[#666] text-sm leading-relaxed mb-6">
-          We track page views and which docs sections are actually useful — nothing
-          more. No ads, no third-party data brokers, no fingerprinting.{" "}
-          <a
-            href="/docs/privacy"
-            className="text-[#444] underline underline-offset-2 hover:text-[#777] transition-colors"
-          >
-            Privacy policy
-          </a>
-        </p>
-        <div className="flex flex-col gap-2.5">
-          <button
-            onClick={accept}
-            className="w-full bg-white text-black font-medium py-2.5 rounded-lg text-sm hover:bg-neutral-100 transition-colors"
-          >
-            Accept analytics
-          </button>
-          <button
-            onClick={decline}
-            className="w-full text-[#444] py-2 text-sm hover:text-[#777] transition-colors"
-          >
-            No thanks
-          </button>
-        </div>
+      <p className="text-[#e2e2e2] text-sm font-semibold mb-1">Analytics cookies</p>
+      <p className="text-[#555] text-xs leading-relaxed mb-4">
+        We use cookies to track page views — no ads, no third-party brokers.{" "}
+        <a
+          href="/docs/privacy"
+          className="text-[#444] underline underline-offset-2 hover:text-[#777] transition-colors"
+        >
+          Privacy policy
+        </a>
+      </p>
+      <div className="flex gap-2">
+        <button
+          onClick={accept}
+          className="flex-1 bg-white text-black font-medium py-2 rounded-lg text-xs
+                     hover:bg-neutral-100 transition-colors"
+        >
+          Accept
+        </button>
+        <button
+          onClick={decline}
+          className="flex-1 border border-[#1e1e1e] text-[#444] py-2 rounded-lg text-xs
+                     hover:text-[#777] hover:border-[#2a2a2a] transition-colors"
+        >
+          Decline
+        </button>
       </div>
     </div>
   );
