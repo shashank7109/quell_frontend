@@ -181,11 +181,19 @@ const FAQS = [
   },
   {
     q: "Can I run Quelltest in CI/CD?",
-    a: "Yes. Use quell check src/ --ci --threshold 0.80 to fail the pipeline if requirement coverage drops below 80%. quell install --pr writes a ready-made GitHub Actions workflow to your repo. The quell pr <PR_NUMBER> --comment command posts a coverage gap report directly as a PR comment.",
+    a: "Yes — and it's the primary use case. quell install --pr writes a ready-made GitHub Actions workflow in one command. The composite action (uses: shashank7109/quelltest_lib@main) scans every PR, posts inline diff annotations, and an idempotent PR comment. Set fail-on-gaps: 'true' to block merges. No API key or LLM needed.",
+  },
+  {
+    q: "What is the difference between quell scan and quell check?",
+    a: "quell scan reads if/raise patterns, try/except/raise, and assert statements directly from production code — no docstrings or type annotations needed. It works on any Python file. quell check reads structured specifications: docstrings (Raises:/Returns: blocks), Pydantic Field constraints, and PySpark StructType schemas. Use scan for any codebase; use check for codebases with rich annotations.",
   },
   {
     q: "Does Quelltest work with FastAPI or async code?",
-    a: "Quelltest scans synchronous Python functions and class methods. Async functions are intentionally skipped to avoid false stub injections — async code typically has different testing patterns. Support for async scanning is on the roadmap.",
+    a: "quell scan detects guard clauses in all Python functions including FastAPI route handlers. Async functions are currently scanned for guard patterns but test generation stubs them as synchronous — a known limitation for complex async dependencies. Support for full async test generation is on the roadmap.",
+  },
+  {
+    q: "What is the GitHub App and how is it different from the GitHub Action?",
+    a: "The GitHub Action is a YAML workflow you add to a single repository. The GitHub App is a webhook server you deploy once and install org-wide — every repository gets automatic PR reviews with no per-repo YAML file. Both use the same AST-based scanner. The App fetches changed files via the GitHub Contents API (no clone), scans them, and posts a PR comment. Self-hosted — your code never leaves your infrastructure.",
   },
   {
     q: "What is the difference between Quell and Quelltest?",
@@ -272,11 +280,12 @@ export default function Home() {
           <Image src="/quell_logo.png" alt="Quelltest" width={76} height={24} className="h-6 w-auto" priority />
           <div className="hidden md:flex items-center gap-7 text-sm text-[#555]">
             <Link href="#how-it-works" className="hover:text-white transition-colors">How it works</Link>
+            <Link href="#github" className="hover:text-white transition-colors">GitHub</Link>
             <Link href="#pricing" className="hover:text-white transition-colors">Pricing</Link>
             <Link href="#faq" className="hover:text-white transition-colors">FAQ</Link>
             <Link href="/docs" className="hover:text-white transition-colors">Docs</Link>
             <Link href="/blog" className="hover:text-white transition-colors">Blog</Link>
-            <a href="https://github.com/shashank7109/quelltest_lib" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">GitHub</a>
+            <a href="https://github.com/shashank7109/quelltest_lib" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">★ Star</a>
           </div>
           <div className="flex items-center gap-3">
             <Link href="/auth/sign-in" className="text-sm text-[#555] hover:text-white transition-colors">Sign in</Link>
@@ -295,7 +304,7 @@ export default function Home() {
           <div className="py-6">
             <div className="inline-flex items-center gap-2 text-xs text-[#555] border border-[#1a1a1a] rounded-full px-3.5 py-1.5 mb-8 bg-[#0a0a0a]">
               <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-              quelltest 0.6.9 — async skip + Pydantic classmethod fixes
+              quelltest 0.9.8 — GitHub Action · guard clause scanner
             </div>
 
             <h1 className="text-4xl md:text-5xl font-bold tracking-tight leading-[1.1] mb-5">
@@ -405,6 +414,7 @@ export default function Home() {
             { label: "PySpark" },
             { label: "libcst" },
             { label: "GitHub Actions" },
+            { label: "GitHub App" },
             { label: "Claude" },
             { label: "GPT-4" },
           ].map((t) => (
@@ -615,28 +625,28 @@ export default function Home() {
           <div className="grid md:grid-cols-2 gap-3">
             {[
               {
+                cmd: "quell scan src/",
+                desc: "Find untested guard clauses (if/raise patterns). No docstrings needed.",
+              },
+              {
+                cmd: "quell scan src/ --fix",
+                desc: "Generate and verify failing tests for every untested guard clause.",
+              },
+              {
                 cmd: "quell check src/ --no-llm",
-                desc: "Scan for requirement gaps — no LLM, no network.",
+                desc: "Scan docstrings + Pydantic models for requirement gaps.",
               },
               {
                 cmd: "quell check src/ --fix --no-llm",
                 desc: "Generate and verify tests for every uncovered requirement.",
               },
               {
-                cmd: "quell check src/ --ci --threshold 0.80",
-                desc: "Fail CI if requirement coverage drops below 80%.",
-              },
-              {
                 cmd: "quell pr <PR_NUMBER> --comment",
                 desc: "Post a coverage gap report as a PR comment.",
               },
               {
-                cmd: "quell score --badge",
-                desc: "Print the current requirement coverage score.",
-              },
-              {
                 cmd: "quell install --pr",
-                desc: "Write the GitHub Actions workflow to your repo.",
+                desc: "Write the GitHub Actions workflow to your repo in one command.",
               },
             ].map((item) => (
               <div key={item.cmd} className="bg-[#080808] border border-[#111] rounded-xl px-5 py-4">
@@ -673,6 +683,134 @@ export default function Home() {
             <p className="pl-4 text-[#333]">&quot;_note&quot;: &quot;No source code. Safe to share.&quot;</p>
             <p className="text-[#333]">{"}"}</p>
           </div>
+        </div>
+      </section>
+
+      {/* ── GitHub Integration ── */}
+      <section id="github" className="py-20 px-6 border-t border-[#111]">
+        <div className="max-w-5xl mx-auto">
+          <div className="mb-12">
+            <p className="text-xs font-medium tracking-widest text-[#333] uppercase mb-3">GitHub Integration</p>
+            <h2 className="text-2xl md:text-3xl font-bold text-[#e2e2e2] tracking-tight max-w-xl">
+              Every pull request reviewed automatically.
+            </h2>
+            <p className="text-[#555] text-sm mt-3 max-w-lg leading-relaxed">
+              Quelltest scans every changed Python file for untested guard clauses —
+              if/raise patterns, try/except/raise, assert — and posts inline diff annotations
+              and a PR comment. No docstrings needed. Purely AST-based.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-6">
+
+            {/* GitHub Action card */}
+            <div className="border border-[#1a1a1a] rounded-xl overflow-hidden bg-[#080808]">
+              <div className="flex items-center gap-3 px-5 py-4 border-b border-[#111]">
+                <div className="w-8 h-8 rounded-lg bg-[#111] flex items-center justify-center">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-[#e2e2e2] text-sm font-semibold">GitHub Action</p>
+                  <p className="text-[#444] text-xs">Per-repo · one YAML file · inline annotations</p>
+                </div>
+              </div>
+              <div className="p-5">
+                <p className="text-[#555] text-xs leading-relaxed mb-4">
+                  Add to any repo in under a minute. The action runs on every PR, emits
+                  inline diff warnings, and posts an idempotent summary comment.
+                </p>
+                <div className="bg-[#060606] border border-[#111] rounded-lg px-4 py-3 font-mono text-[11px] text-[#444] leading-[1.8] mb-4">
+                  <p className="text-[#2a2a2a]"># .github/workflows/quell.yml</p>
+                  <p><span className="text-[#555]">uses</span>: shashank7109/quelltest_lib@main</p>
+                  <p className="pl-2"><span className="text-[#555]">with</span>:</p>
+                  <p className="pl-4">target: <span className="text-[#888]">&apos;.&apos;</span></p>
+                  <p className="pl-4">post-comment: <span className="text-[#888]">&apos;true&apos;</span></p>
+                  <p className="pl-4">fail-on-gaps: <span className="text-[#888]">&apos;false&apos;</span></p>
+                </div>
+                <div className="text-[#333] text-[11px] mb-4 space-y-1">
+                  <p className="flex items-center gap-2"><span className="text-green-700">✓</span> Inline diff annotations per guard clause</p>
+                  <p className="flex items-center gap-2"><span className="text-green-700">✓</span> PR comment with gap table</p>
+                  <p className="flex items-center gap-2"><span className="text-green-700">✓</span> Optional merge block with fail-on-gaps</p>
+                </div>
+                <Link href="/docs/guides/github-actions" className="text-xs text-[#0070f3] hover:text-[#60a5fa] transition-colors">
+                  Setup guide →
+                </Link>
+              </div>
+            </div>
+
+            {/* GitHub App card */}
+            <div className="border border-[#1a1a1a] rounded-xl overflow-hidden bg-[#080808]">
+              <div className="flex items-center gap-3 px-5 py-4 border-b border-[#111]">
+                <div className="w-8 h-8 rounded-lg bg-[#111] flex items-center justify-center">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 2l9 4.9V17L12 22l-9-4.9V7z"/><path d="M12 22V12"/><path d="M21 7l-9 5-9-5"/>
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-[#e2e2e2] text-sm font-semibold">GitHub App</p>
+                  <p className="text-[#444] text-xs">Org-wide · zero per-repo config · self-hosted</p>
+                </div>
+              </div>
+              <div className="p-5">
+                <p className="text-[#555] text-xs leading-relaxed mb-4">
+                  Install once at the organisation level. Every repo gets automatic PR
+                  reviews with no YAML to add or maintain. Runs the same AST scanner
+                  against files fetched via the GitHub Contents API — no clone needed.
+                </p>
+                <div className="bg-[#060606] border border-[#111] rounded-lg px-4 py-3 font-mono text-[11px] text-[#444] leading-[1.8] mb-4">
+                  <p className="text-[#2a2a2a]"># Deploy the FastAPI webhook server</p>
+                  <p>pip install quelltest fastapi uvicorn PyJWT</p>
+                  <p>uvicorn quell.github.app:app <span className="text-[#2a2a2a]">\</span></p>
+                  <p className="pl-4">--host 0.0.0.0 --port <span className="text-[#888]">$PORT</span></p>
+                </div>
+                <div className="text-[#333] text-[11px] mb-4 space-y-1">
+                  <p className="flex items-center gap-2"><span className="text-green-700">✓</span> One install covers all repos in the org</p>
+                  <p className="flex items-center gap-2"><span className="text-green-700">✓</span> No repository clone — uses GitHub API</p>
+                  <p className="flex items-center gap-2"><span className="text-green-700">✓</span> Idempotent PR comment per push</p>
+                </div>
+                <Link href="/docs/guides/github-app" className="text-xs text-[#0070f3] hover:text-[#60a5fa] transition-colors">
+                  Setup guide →
+                </Link>
+              </div>
+            </div>
+
+          </div>
+
+          {/* PR comment preview */}
+          <div className="mt-8 border border-[#1a1a1a] rounded-xl overflow-hidden">
+            <div className="flex items-center gap-2 px-5 py-3 border-b border-[#111] bg-[#080808]">
+              <span className="text-[#333] text-xs font-mono">PR comment preview</span>
+              <span className="ml-auto text-[10px] text-[#2a2a2a] border border-[#1a1a1a] rounded px-2 py-0.5">markdown</span>
+            </div>
+            <div className="bg-[#060606] px-6 py-5 font-mono text-xs text-[#444] leading-[1.9]">
+              <p><span className="text-yellow-700">🟡</span> <span className="text-[#666] font-semibold">Quell — Guard Clause Scan</span></p>
+              <p className="mt-2"><span className="text-[#555]">3 untested guard clauses found</span> <span className="text-[#333]">— 40% covered (2/5)</span></p>
+              <div className="mt-3 border border-[#111] rounded overflow-hidden">
+                <div className="grid grid-cols-4 gap-0 border-b border-[#111] px-3 py-1.5 text-[#2a2a2a]">
+                  <span>File</span><span>Function</span><span className="col-span-2">Guard</span>
+                </div>
+                <div className="grid grid-cols-4 gap-0 px-3 py-1.5 border-b border-[#111]">
+                  <span className="text-[#555]">payments.py:32</span>
+                  <span className="text-[#444]">process_payment</span>
+                  <span className="col-span-2 text-[#333]">if amount &lt;= 0:</span>
+                </div>
+                <div className="grid grid-cols-4 gap-0 px-3 py-1.5 border-b border-[#111]">
+                  <span className="text-[#555]">sessions.py:18</span>
+                  <span className="text-[#444]">create_session</span>
+                  <span className="col-span-2 text-[#333]">if not user:</span>
+                </div>
+                <div className="grid grid-cols-4 gap-0 px-3 py-1.5">
+                  <span className="text-[#555]">auth.py:44</span>
+                  <span className="text-[#444]">require_auth</span>
+                  <span className="col-span-2 text-[#333]">if not is_authenticated:</span>
+                </div>
+              </div>
+              <p className="mt-3 text-[#333]">Fix locally: <span className="text-[#555]">quell scan . --fix</span></p>
+            </div>
+          </div>
+
         </div>
       </section>
 

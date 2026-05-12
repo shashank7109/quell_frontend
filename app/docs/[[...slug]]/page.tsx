@@ -20,14 +20,29 @@ export async function generateStaticParams() {
   ];
 }
 
+const BASE_URL = "https://quell.buildsbyshashank.tech";
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug = [] } = await params;
   const page = getDocPage(slug);
   if (!page) return {};
+  const canonical = `${BASE_URL}${page.meta.href}`;
   return {
     title: page.meta.title,
     description: page.meta.description,
-    alternates: { canonical: page.meta.href },
+    alternates: { canonical },
+    openGraph: {
+      title: `${page.meta.title} | Quelltest Docs`,
+      description: page.meta.description,
+      url: canonical,
+      siteName: "Quelltest",
+      type: "article",
+    },
+    twitter: {
+      card: "summary",
+      title: `${page.meta.title} | Quelltest Docs`,
+      description: page.meta.description,
+    },
   };
 }
 
@@ -41,8 +56,27 @@ export default async function DocsPage({ params }: Props) {
   const prev = currentIndex > 0 ? allPages[currentIndex - 1] : null;
   const next = currentIndex < allPages.length - 1 ? allPages[currentIndex + 1] : null;
 
+  const breadcrumbItems = [
+    { "@type": "ListItem", position: 1, name: "Docs", item: `${BASE_URL}/docs` },
+    ...slug.map((s, i) => ({
+      "@type": "ListItem",
+      position: i + 2,
+      name: s.charAt(0).toUpperCase() + s.slice(1).replace(/-/g, " "),
+      item: `${BASE_URL}/docs/${slug.slice(0, i + 1).join("/")}`,
+    })),
+  ];
+  const breadcrumbSchema = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: breadcrumbItems,
+  };
+
   return (
     <div className="max-w-3xl mx-auto px-8 py-12">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
+      />
       {/* Breadcrumb */}
       <div className="flex items-center gap-1.5 text-xs text-[#444] mb-8">
         <Link href="/docs" className="hover:text-[#888] transition-colors">Docs</Link>

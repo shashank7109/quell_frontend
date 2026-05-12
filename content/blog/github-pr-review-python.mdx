@@ -1,0 +1,207 @@
+---
+title: "Automatic Python PR Reviews: Catch Untested Guard Clauses Before They Merge"
+description: "How Quelltest scans every pull request for untested if/raise patterns, try/except/raise blocks, and assert statements — posting inline diff annotations and a PR comment with zero configuration."
+date: "2026-05-12"
+category: "Engineering"
+tags: ["github", "github actions", "pull request", "python", "testing", "guard clauses", "ci cd", "code review"]
+author: "Shashank Bindal"
+authorUrl: "https://shashankbindal.me"
+---
+
+Every Python codebase has guard clauses — the `if x is None: raise ValueError` checks, the `try/except SomeError: raise WrappedError` conversions, the `assert amount > 0` boundary guards. They are the contract of your code. They are also the most commonly untested part of it.
+
+A new pull request adds a function. The function has three guard clauses. The PR description says "added validation." The tests directory has one happy-path test. The guards ship untested.
+
+This is not hypothetical. It happens in every team, every week.
+
+## What Quelltest does differently
+
+Most testing tools tell you what *percentage* of lines were executed. Quelltest tells you which specific guard clauses have no test — and then proves each generated test actually catches violations.
+
+The v0.9.8 release adds GitHub integration: a composite GitHub Action and a self-hosted GitHub App that scan every pull request automatically, post inline diff annotations directly on the guard clauses, and leave an idempotent PR comment with a gap table.
+
+No API key. No LLM. No code leaves your runner. Pure AST.
+
+## The scanner: what it reads
+
+Quelltest reads four guard clause patterns from any Python file:
+
+**Pattern 1 — if/raise:**
+```python
+def process_payment(amount: float) -> None:
+    if amount <= 0:                          # ← detected: BOUNDARY guard
+        raise ValueError("amount must be positive")
+```
+
+**Pattern 2 — try/except/raise:**
+```python
+def parse_config(path: str) -> dict:
+    try:
+        return json.loads(path.read_text())
+    except json.JSONDecodeError:             # ← detected: MUST_RAISE guard
+        raise ConfigError("invalid JSON in config file")
+```
+
+**Pattern 3 — assert:**
+```python
+def apply_discount(price: float, pct: float) -> float:
+    assert 0 <= pct <= 100, "pct must be 0-100"  # ← detected: BOUNDARY guard
+```
+
+**Pattern 4 — standalone raise:**
+```python
+def send(self, request):
+    raise NotImplementedError("subclasses must implement send")  # skipped — abstract stub
+```
+
+Abstract stubs (`raise NotImplementedError` as the entire function body) are automatically skipped. Quelltest only reports guards that are actually testable.
+
+The reader walks the Python AST — no imports, no test execution, no runtime overhead. It works on code that doesn't even install cleanly.
+
+## GitHub Action: three lines of YAML
+
+```yaml
+# .github/workflows/quell.yml
+name: Quell — Guard Clause Scan
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - "**.py"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  quell:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shashank7109/quelltest_lib@main
+        with:
+          target: '.'
+          post-comment: 'true'
+          fail-on-gaps: 'false'
+```
+
+Or install it in one command:
+
+```bash
+quell install --pr
+```
+
+### What you see in the PR
+
+Every untested guard clause appears as a warning annotation inline in the diff — exactly where the guard is written:
+
+```
+⚠  Untested guard [boundary] in process_payment()
+   if amount <= 0:
+```
+
+GitHub shows these annotations in the **Files changed** tab, right on the line. Reviewers see the gap without reading the test directory.
+
+A summary comment is posted (and updated, never re-posted) on each push:
+
+```
+🟡 Quell — Guard Clause Scan
+
+3 untested guard clauses found — 40% covered (2/5)
+
+| File            | Function        | Guard                    | Type     |
+|-----------------|-----------------|--------------------------|----------|
+| payments.py:32  | process_payment | if amount <= 0:          | boundary |
+| sessions.py:18  | create_session  | if not user:             | not_null |
+| auth.py:44      | require_auth    | if not is_authenticated: | auth_check |
+
+Fix locally: quell scan . --fix
+```
+
+### Inputs
+
+| Input | Default | Description |
+|-------|---------|-------------|
+| `target` | `.` | Directory to scan |
+| `post-comment` | `true` | Post the PR comment table |
+| `fail-on-gaps` | `false` | Exit 1 to block the merge |
+| `fail-on-gaps: 'true'` | — | Blocks merges when guard clauses are untested |
+
+### Block merges on untested guards
+
+```yaml
+- uses: shashank7109/quelltest_lib@main
+  with:
+    fail-on-gaps: 'true'
+```
+
+This gives you a genuine quality gate. Not "tests exist" — "the specific guard clauses in this PR have tests."
+
+## GitHub App: zero config, every repo
+
+The GitHub Action requires adding a YAML file to each repository. The GitHub App removes that requirement entirely.
+
+Install it once at the organisation level. From that point, every pull request in every repository — including repositories created in the future — gets automatic guard clause scanning with no per-repo setup.
+
+The architecture is intentionally minimal:
+
+```
+GitHub sends pull_request webhook
+    ↓
+HMAC-SHA256 signature check
+    ↓
+Installation access token (1-hour TTL, repo-scoped)
+    ↓
+Changed .py files fetched via GitHub Contents API   ← no clone
+    ↓
+CodeGuardReader scans each file   ← pure AST, offline
+    ↓
+Post / update PR comment   ← idempotent
+```
+
+No repository is cloned. No code is sent to any external service. The webhook server runs entirely inside your infrastructure.
+
+Setup takes about 15 minutes: create the GitHub App, deploy the FastAPI server (Render free tier, Railway, Fly.io, Docker), configure three environment variables. Full instructions in the [GitHub App guide](/docs/guides/github-app).
+
+## What "verified" means
+
+The GitHub integration shows you gaps — where guard clauses have no test. Running `quell scan . --fix` locally takes it further: for each gap, Quelltest generates a test and puts it through two-phase verification before writing anything to disk.
+
+**Phase 1:** The test must PASS on the original, correct code. If the test breaks valid behavior, it's rejected.
+
+**Phase 2:** Quelltest replaces the `raise` with `pass`, removing the guard. The test must FAIL on that violated code. If the test still passes, it proves nothing and is rejected.
+
+Only tests that pass both phases are written. They are not tests that execute the code — they are tests that *prove the guard exists and works*.
+
+```python
+# Generated and verified by quell scan . --fix
+def test_process_payment_raises_on_zero_amount():
+    with pytest.raises(ValueError):
+        process_payment(0)   # violation: amount <= 0
+```
+
+## What guard clause coverage actually measures
+
+Statement coverage tells you a line ran. Branch coverage tells you both sides of an `if` were hit. Neither tells you whether there is a test for the specific guard clause you just wrote.
+
+Quelltest's guard clause coverage answers: "For every `if condition: raise Exception` in this codebase — does a test exist that will fail if someone deletes that guard?"
+
+That is a materially different question. It is the question that matters when you are reviewing a PR that adds payment validation, authentication middleware, or data pipeline guards.
+
+## Try it
+
+```bash
+pip install quelltest
+
+# See what's untested
+quell scan src/
+
+# Generate tests locally
+quell scan src/ --fix
+
+# Add to GitHub (writes .github/workflows/quell.yml)
+quell install --pr
+```
+
+The [GitHub Actions guide](/docs/guides/github-actions) and [GitHub App guide](/docs/guides/github-app) have the full setup instructions.

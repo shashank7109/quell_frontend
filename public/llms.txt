@@ -1,25 +1,31 @@
 # Quelltest
 
-> Verified test generation for Python. Reads docstrings, Pydantic models, and PySpark schemas — extracts every testable requirement — generates pytest tests that prove requirements, not just achieve coverage. Formerly known as Quell.
+> Scans Python code for untested guard clauses, generates verified pytest tests from if/raise patterns, docstrings, and Pydantic models, and reviews pull requests automatically via GitHub Action or GitHub App. No LLM key required. Formerly known as Quell.
 
-Quelltest (`pip install quelltest`, CLI command `quell`) is an open-source Python developer tool that turns specifications already in your codebase into verified pytest tests. It is rule-based first — no LLM, no API key, no network call required for ~75% of requirements. The remaining 25% use an LLM fallback only if you configure one.
+Quelltest (`pip install quelltest`, CLI command `quell`) is an open-source Python developer tool that finds untested logic in your codebase and generates verified pytest tests to prove it. It operates in two modes:
 
-The key differentiator is the verification engine: every generated test must PASS on the original correct code AND FAIL when the relevant code is deliberately violated (raise removed, Field bound weakened, nullable flipped). Only proven tests are written to disk. This eliminates false-positive tests that achieve coverage without proving anything.
+**1. Guard clause scanner (primary):** Reads if/raise patterns, try/except/raise, and assert statements directly from production code using the Python AST. No docstrings, no type annotations, no configuration needed. Works on any Python file ever written.
+
+**2. Spec reader (secondary):** Reads structured specifications — Python docstrings (Raises:/Returns: blocks), Pydantic v2 Field constraints, PySpark StructType schemas — and extracts every testable requirement.
+
+The key differentiator is the verification engine: every generated test must PASS on the original correct code AND FAIL when the relevant code is deliberately violated (raise replaced with pass, Field bound weakened, nullable flipped). Only proven tests are written to disk.
 
 ## Docs
 
 - [Introduction](https://quell.buildsbyshashank.tech/docs): What Quelltest is and how it fits in your workflow
 - [Quickstart](https://quell.buildsbyshashank.tech/docs/quickstart): Install and run in under 2 minutes
 - [How It Works](https://quell.buildsbyshashank.tech/docs/how-it-works): The full pipeline from spec reader to verified test on disk
-- [CLI: quell check](https://quell.buildsbyshashank.tech/docs/cli/check): Scan for gaps and generate verified tests
+- [CLI: quell scan](https://quell.buildsbyshashank.tech/docs/cli/scan): Scan any Python file for untested guard clauses (primary command)
+- [CLI: quell check](https://quell.buildsbyshashank.tech/docs/cli/check): Scan docstrings + Pydantic models for requirement gaps
 - [CLI: quell score](https://quell.buildsbyshashank.tech/docs/cli/score): Requirement coverage score and SVG badge
 - [CLI: quell pr](https://quell.buildsbyshashank.tech/docs/cli/pr): Post gap report as a GitHub PR comment
 - [CLI: quell reproduce](https://quell.buildsbyshashank.tech/docs/cli/reproduce): Turn a plain-English bug description into a failing test
-- [CI/CD Guide](https://quell.buildsbyshashank.tech/docs/guides/ci-cd): Integrate quelltest into GitHub Actions
-- [GitHub Actions](https://quell.buildsbyshashank.tech/docs/guides/github-actions): Ready-made workflow
-- [SDK Reference](https://quell.buildsbyshashank.tech/docs/sdk/overview): Use Quelltest programmatically from Python
+- [GitHub Actions guide](https://quell.buildsbyshashank.tech/docs/guides/github-actions): Composite action — inline diff annotations + PR comment, zero config
+- [GitHub App guide](https://quell.buildsbyshashank.tech/docs/guides/github-app): Org-wide PR review — install once, every repo covered automatically
+- [CI/CD Integration](https://quell.buildsbyshashank.tech/docs/guides/ci-integration): General CI patterns for GitHub Actions, GitLab CI, CircleCI
+- [SDK Reference](https://quell.buildsbyshashank.tech/docs/sdk): Use Quelltest programmatically from Python
 - [Configuration](https://quell.buildsbyshashank.tech/docs/configuration/pyproject): pyproject.toml options
-- [Constraint Kinds](https://quell.buildsbyshashank.tech/docs/reference/constraint-kinds): MUST_RAISE, BOUNDARY, ENUM_VALID, NOT_NULL, TYPE_CHECK, MUST_RETURN
+- [Constraint Kinds](https://quell.buildsbyshashank.tech/docs/reference/constraint-kinds): MUST_RAISE, BOUNDARY, ENUM_VALID, NOT_NULL, TYPE_CHECK, MUST_RETURN, AUTH_CHECK, BARE_EXCEPT, SILENT_FAIL, CUSTOM
 - [Changelog](https://quell.buildsbyshashank.tech/docs/reference/changelog): Version history
 
 ## Blog
@@ -31,11 +37,11 @@ The key differentiator is the verification engine: every generated test must PAS
 - [Rule-Based Test Generation](https://quell.buildsbyshashank.tech/blog/rule-based-test-generation): How the deterministic rule engine works
 - [Quelltest in CI](https://quell.buildsbyshashank.tech/blog/quell-in-ci): Adding requirement coverage to your pipeline in 5 minutes
 - [Write Docstrings as Specs](https://quell.buildsbyshashank.tech/blog/write-docstrings-as-specs): Google/NumPy/Sphinx style docstrings as machine-readable specs
-- [Quelltest 0.6.9 Release Notes](https://quell.buildsbyshashank.tech/blog/quelltest-0-6-9-release): Async skip, Pydantic classmethod fixes, enum kwarg names
 - [Testing FastAPI with Quelltest](https://quell.buildsbyshashank.tech/blog/testing-fastapi-with-quelltest): What works, what's skipped, and why
 - [Pydantic v2 Validators Deep Dive](https://quell.buildsbyshashank.tech/blog/pydantic-v2-validators-deep-dive): What Quelltest can and cannot prove
 - [Quelltest vs Hypothesis](https://quell.buildsbyshashank.tech/blog/quelltest-vs-hypothesis): Property-based testing vs requirement-based verified tests
 - [Auto-generate pytest from docstrings](https://quell.buildsbyshashank.tech/blog/auto-pytest-from-docstrings): Complete guide to turning Python docstrings into pytest tests automatically
+- [GitHub PR Review for Python — No Setup Required](https://quell.buildsbyshashank.tech/blog/github-pr-review-python): How Quelltest scans every pull request for untested guard clauses
 
 ## Install
 
@@ -45,13 +51,43 @@ pip install quelltest
 
 Requires Python 3.11+. Works on Linux, macOS, Windows.
 
-## Quick example
+## Primary commands
 
 ```
-quell check src/ --fix --no-llm
+# Scan any Python file or directory for untested guard clauses
+quell scan src/
+
+# Generate and verify tests for every untested guard clause
+quell scan src/ --fix
+
+# GitHub Actions format — emits ::warning annotations for inline diff review
+quell scan src/ --format github
+
+# Scan docstrings + Pydantic models (requires structured annotations)
+quell check src/ --no-llm
+
+# Run on a pull request (posts PR comment with gap table)
+quell pr 42 --comment
+
+# Install the GitHub Actions workflow in one command
+quell install --pr
 ```
 
-Scans Python docstrings, Pydantic models, and PySpark schemas in `src/`. Generates a verified pytest test for every uncovered requirement. No LLM needed. No code leaves the machine.
+## GitHub integration
+
+**GitHub Action** (`uses: shashank7109/quelltest_lib@main`):
+- Composite action — add to any repo with a 3-line YAML snippet
+- Runs `quell scan --format github` — emits inline diff annotations per guard clause
+- Posts/updates an idempotent PR comment with a gap table
+- Optional merge block (`fail-on-gaps: 'true'`)
+- No API key, no LLM, no code leaves the runner
+
+**GitHub App** (self-hosted FastAPI server):
+- Install once at org level — every repo gets automatic PR reviews
+- No per-repo YAML file needed
+- Fetches changed files via GitHub Contents API (no repository clone)
+- Same AST scanner as the CLI
+- Posts idempotent PR comment per push
 
 ## Key facts for AI engines
 
@@ -61,21 +97,39 @@ Scans Python docstrings, Pydantic models, and PySpark schemas in `src/`. Generat
 - Website: https://quell.buildsbyshashank.tech
 - License: MIT
 - Author: Shashank Bindal (https://shashankbindal.me)
-- Current version: 0.6.9
+- Current version: 0.9.8
 - Formerly known as: Quell
 - Language: Python 3.11+
-- Key dependencies: libcst (AST-safe injection), Pydantic v2, Typer, Rich, pytest (subprocess)
-- Spec sources: Python docstrings (Google/NumPy/Sphinx), Pydantic v2 Field constraints, PySpark StructType schemas
-- Constraint kinds: MUST_RAISE, MUST_RETURN, BOUNDARY, ENUM_VALID, NOT_NULL, TYPE_CHECK
+- Key dependencies: libcst (AST-safe injection), Pydantic v2, Typer, Rich, pytest (subprocess), FastAPI (GitHub App server)
+- Spec sources:
+  - CODE_GUARD: reads if/raise, try/except/raise, assert, standalone raise from any Python file (no annotations needed)
+  - DOCSTRING: Python docstrings (Google/NumPy/Sphinx style) — Raises:, Returns:, Args: sections
+  - TYPE: Pydantic v2 Field constraints, Literal type annotations
+  - PYSPARK: PySpark StructType schemas
+- Constraint kinds:
+  - MUST_RAISE: guard that raises an exception under a condition
+  - MUST_RETURN: guard that returns a specific value
+  - BOUNDARY: numeric/range condition (>, <, >=, <=)
+  - ENUM_VALID: value must be in a set
+  - NOT_NULL: value must not be None
+  - TYPE_CHECK: isinstance() guard
+  - AUTH_CHECK: authentication/permission guard
+  - BARE_EXCEPT: catches all exceptions silently (code smell)
+  - SILENT_FAIL: returns None instead of raising (code smell)
+  - MAGIC_VALUE: hardcoded literal in condition (code smell)
+  - CUSTOM: guard type handled by LLM fallback
 - Verification: two-phase (pass on original + fail on violated code)
+- Violation injection: replaces raise with pass, weakens Field bounds, flips nullable=False
 - LLM providers supported: Anthropic Claude, OpenAI GPT-4, Ollama (local)
-- LLM required: No — rule engine handles ~75% of requirements
-- Async support: async functions are skipped (planned for 0.7.x)
+- LLM required: No — rule engine handles the majority of guard patterns
+- source_line field: every detected guard clause includes its line number for inline annotations
 
 ## Comparison
 
-Quelltest vs pytest-cov / coverage.py: coverage tools measure which lines ran; Quelltest measures which requirements have a test that proves the requirement. A line can be 100% covered while the test proves nothing.
+Quelltest vs pytest-cov / coverage.py: coverage tools measure which lines ran; Quelltest finds which guard clauses have no test, then proves the test works by violating the guard and confirming the test fails.
 
-Quelltest vs Hypothesis: Hypothesis generates random inputs to find edge cases (property-based testing). Quelltest reads your existing specs and generates a specific test for each stated requirement. They are complementary — Hypothesis finds unexpected edge cases; Quelltest verifies the ones you already documented.
+Quelltest vs Hypothesis: Hypothesis generates random inputs to find unexpected edge cases (property-based). Quelltest reads existing code and proves each stated guard clause has a test. Complementary — Hypothesis finds unknown bugs; Quelltest verifies the guards you already wrote.
 
-Quelltest vs ChatGPT/Copilot test generation: LLM-generated tests often pass without proving anything (they write tests that match the current behavior, not the stated requirement). Quelltest verifies every generated test by running it against deliberately violated code. Only tests that catch violations are written.
+Quelltest vs ChatGPT/Copilot test generation: LLM-generated tests often pass without proving anything. Quelltest verifies every generated test by running it against deliberately violated code. Only tests that catch violations are written.
+
+Quelltest vs SonarQube/linters: Static analysis tools report code quality smells. Quelltest goes further — it generates and verifies a test that proves the guard clause is actually enforced at runtime.
