@@ -1,0 +1,247 @@
+---
+title: GitHub App
+description: Install Quell once at the org level and get automatic PR reviews across every repository — no workflow files needed.
+---
+
+# GitHub App
+
+The Quell GitHub App watches every pull request across your organisation.
+You install it once and every repo gets automatic guard-clause reviews with
+no YAML files to add or maintain.
+
+<Callout type="info">
+  If you only need coverage for one or two repos, the
+  [GitHub Actions guide](/docs/guides/github-actions) is simpler — it needs no
+  server. Use the App when you want zero-config coverage across many repos or
+  an org-wide policy.
+</Callout>
+
+---
+
+## How it works
+
+```
+GitHub sends pull_request webhook
+    ↓
+HMAC-SHA256 signature verification
+    ↓
+Exchange App JWT → installation access token (1-hour TTL, scoped to one repo)
+    ↓
+Fetch changed .py files via GitHub Contents API  (no clone)
+    ↓
+CodeGuardReader scans each file  (pure AST, offline)
+    ↓
+Post / update a single PR comment  (idempotent — never spams)
+```
+
+No repository is cloned. No code is transmitted anywhere. The scanner is
+purely AST-based and runs inside your own infrastructure.
+
+---
+
+## Setup
+
+<Steps>
+  <Step title="Create the GitHub App">
+
+    Go to **GitHub → Settings → Developer settings → GitHub Apps → New GitHub App**
+    (for an org: **Org Settings → Developer settings → GitHub Apps**).
+
+    Fill in:
+
+    | Field | Value |
+    |-------|-------|
+    | App name | `Quell` (or `quell-yourorg`) |
+    | Homepage URL | `https://quell.buildsbyshashank.tech` |
+    | Webhook URL | `https://<your-server>/github/webhook` — set this after you deploy in Step 3 |
+    | Webhook secret | Generate a random string, save it — you'll need it in Step 2 |
+
+    Under **Repository permissions**:
+    - **Contents** → Read-only
+    - **Pull requests** → Read & write
+
+    Under **Subscribe to events**:
+    - Tick **Pull request**
+
+    Click **Create GitHub App**. Note the **App ID** shown on the settings page.
+
+  </Step>
+
+  <Step title="Download the private key and note your credentials">
+
+    On the App settings page, scroll to **Private keys** → **Generate a private key**.
+    A `.pem` file downloads automatically. Keep it safe — this is the only copy.
+
+    You now have four values you'll need:
+
+    | Variable | Where |
+    |----------|-------|
+    | `GITHUB_APP_ID` | The number on the App settings page (e.g. `123456`) |
+    | `GITHUB_APP_PRIVATE_KEY` | The full contents of the `.pem` file |
+    | `GITHUB_WEBHOOK_SECRET` | The secret you entered in Step 1 |
+    | `PORT` | Port for the server (default `8080`) |
+
+    **Format the private key for an environment variable** — the PEM file has
+    real newlines; most hosting platforms expect them escaped as `\n`:
+
+    ```bash
+    # macOS / Linux
+    cat your-app.pem | awk 'NF {printf "%s\\n", $0}' | pbcopy
+    ```
+
+    ```powershell
+    # Windows PowerShell
+    (Get-Content your-app.pem -Raw).Replace("`r`n","\n").Replace("`n","\n") | Set-Clipboard
+    ```
+
+    Paste the result as the value of `GITHUB_APP_PRIVATE_KEY`.
+
+  </Step>
+
+  <Step title="Deploy the webhook server">
+
+    The server is a standard FastAPI app at `quell/github/app.py` inside the
+    `quelltest_lib` repository. Deploy it wherever you host Python services.
+
+    **Render (free tier):**
+
+    1. Fork `quelltest_lib` to your GitHub account.
+    2. [render.com](https://render.com) → New → Web Service → connect the fork.
+    3. Set:
+       - Build command: `pip install quelltest fastapi uvicorn PyJWT cryptography`
+       - Start command: `uvicorn quell.github.app:app --host 0.0.0.0 --port $PORT`
+    4. Add the three environment variables (`GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`, `GITHUB_WEBHOOK_SECRET`).
+    5. Deploy. Copy the `https://your-app.onrender.com` URL — paste it into the App's Webhook URL field.
+
+    **Docker (self-hosted):**
+
+    ```dockerfile
+    FROM python:3.11-slim
+    RUN pip install quelltest fastapi uvicorn PyJWT cryptography
+    CMD ["uvicorn", "quell.github.app:app", "--host", "0.0.0.0", "--port", "8080"]
+    ```
+
+    ```bash
+    docker build -t quell-app .
+    docker run -p 8080:8080 \
+      -e GITHUB_APP_ID=123456 \
+      -e GITHUB_APP_PRIVATE_KEY="$(cat your-app.pem | awk 'NF {printf "%s\\n", $0}')" \
+      -e GITHUB_WEBHOOK_SECRET=your-secret \
+      quell-app
+    ```
+
+    **Local testing with ngrok:**
+
+    ```bash
+    pip install quelltest fastapi uvicorn PyJWT cryptography
+    export GITHUB_APP_ID=123456
+    export GITHUB_APP_PRIVATE_KEY="$(cat your-app.pem | awk 'NF {printf "%s\\n", $0}')"
+    export GITHUB_WEBHOOK_SECRET=your-secret
+    uvicorn quell.github.app:app --host 0.0.0.0 --port 8080
+    # in another terminal:
+    ngrok http 8080
+    ```
+
+    Update the App's Webhook URL to the `https://...ngrok-free.app` URL while testing.
+
+    **Railway / Fly.io:**
+
+    ```bash
+    # Railway
+    railway init && railway up
+    railway variables set GITHUB_APP_ID=... GITHUB_APP_PRIVATE_KEY=... GITHUB_WEBHOOK_SECRET=...
+
+    # Fly.io
+    fly launch --name quell-app
+    fly secrets set GITHUB_APP_ID=... GITHUB_APP_PRIVATE_KEY=... GITHUB_WEBHOOK_SECRET=...
+    fly deploy
+    ```
+
+  </Step>
+
+  <Step title="Verify the webhook">
+
+    In the GitHub App settings → **Advanced** → **Recent Deliveries**, you
+    should see a `ping` event with a `200` response after saving the Webhook URL.
+
+    | Response | Cause |
+    |----------|-------|
+    | `200` | Working correctly |
+    | `403` | Webhook secret mismatch — check `GITHUB_WEBHOOK_SECRET` |
+    | `502 / 503` | Server not running or wrong URL |
+    | `500` | Private key formatting error — check newlines in `GITHUB_APP_PRIVATE_KEY` |
+
+  </Step>
+
+  <Step title="Install the App on repositories">
+
+    GitHub App settings → **Install App** → choose **All repositories** or
+    select specific ones.
+
+    Open (or re-open) any pull request in an installed repo. Within a few
+    seconds Quell posts a comment listing every untested guard clause in the
+    changed files.
+
+  </Step>
+</Steps>
+
+---
+
+## PR comment format
+
+```
+🟡 Quell — Guard Clause Scan
+
+3 untested guard clauses found in changed files — 60% covered (3/5)
+
+| File            | Function        | Guard                    | Type      |
+|-----------------|-----------------|--------------------------|-----------|
+| payments.py:32  | process_payment | boundary condition —...  | boundary  |
+| sessions.py:18  | create_session  | must not be None — ...   | not_null  |
+| auth.py:44      | require_auth    | auth/permission check... | auth      |
+
+Fix locally: quell scan src/ --fix
+
+---
+Quell v0.9.8 — rule-based, no code sent to any server
+```
+
+The comment is idempotent — Quell updates the same comment on every push to
+the PR branch rather than posting a new one.
+
+---
+
+## Environment variables reference
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `GITHUB_APP_ID` | Yes | Numeric App ID from the App settings page |
+| `GITHUB_APP_PRIVATE_KEY` | Yes | PEM private key contents (`\n`-escaped for env vars) |
+| `GITHUB_WEBHOOK_SECRET` | Yes | Secret configured in the App's webhook settings |
+| `PORT` | No | Port to listen on. Defaults to `8080`. |
+
+---
+
+## Troubleshooting
+
+**Webhook delivers `403`**
+The `GITHUB_WEBHOOK_SECRET` in your environment doesn't match the secret
+entered in the App settings. Regenerate it in both places.
+
+**Webhook delivers `500` (private key error)**
+The PEM newlines weren't escaped correctly. Every line of the PEM file must
+be joined with a literal `\n` (backslash + n), not a real newline character.
+Re-run the `awk` or PowerShell command from Step 2 and update the env var.
+
+**App installed but no comment appears**
+- Check **App settings → Advanced → Recent Deliveries** for errors.
+- Confirm **Pull request** is checked under **Subscribe to events**.
+- The App only processes `opened`, `synchronize`, and `reopened` actions. If
+  the PR was already open before the App was installed, close and re-open it.
+- The App only scans `.py` files that are `added` or `modified` in the diff.
+  A PR that only touches non-Python files produces no comment.
+
+**Comment posted with "No guard clauses found"**
+The changed files have no `if/raise`, `try/except/raise`, `assert`, or
+standalone `raise` patterns — or every guard clause already has a test. This
+is correct behaviour.

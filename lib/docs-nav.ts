@@ -32,6 +32,7 @@ export const NAV: NavItem[] = [
       { title: "Prove Your First Requirement", href: "/docs/guides/first-proof" },
       { title: "CI/CD Integration", href: "/docs/guides/ci-integration" },
       { title: "GitHub Actions", href: "/docs/guides/github-actions" },
+      { title: "GitHub App", href: "/docs/guides/github-app" },
       { title: "AI Agents (MCP)", href: "/docs/guides/ai-agents" },
     ],
   },
