@@ -75,8 +75,12 @@ const FAQS = [
     a: "Yes — and it's the primary use case. quell install --pr writes a ready-made GitHub Actions workflow in one command. The composite action (uses: shashank7109/quelltest_lib@main) scans every PR, posts inline diff annotations, and an idempotent PR comment. Set fail-on-gaps: 'true' to block merges. No API key or LLM needed.",
   },
   {
-    q: "What is the difference between quell scan and quell check?",
-    a: "quell scan reads if/raise patterns, try/except/raise, and assert statements directly from production code — no docstrings or type annotations needed. It works on any Python file. quell check reads structured specifications: docstrings (Raises:/Returns: blocks), Pydantic Field constraints, and PySpark StructType schemas. Use scan for any codebase; use check for codebases with rich annotations.",
+    q: "What is QuellGraph and do I need it?",
+    a: "QuellGraph is a persistent SQLite code-intelligence graph built from your project's AST. It tracks which functions transitively depend on infrastructure (postgres, redis, localstack, etc.) via BFS across call chains — even when sqlalchemy is 3 hops away. Run `quell graph build src/` once; subsequent runs are incremental (only changed files re-parsed). QuellGraph is optional — `quell check` works without it, but `--with-containers` requires it.",
+  },
+  {
+    q: "What does --with-containers do?",
+    a: "When you pass `quell check src/ --with-containers`, Quelltest reads the QuellGraph to find which functions need infrastructure, auto-starts throwaway Docker containers (postgres, redis, localstack, etc.) with hardcoded ephemeral credentials, injects connection URLs into the test subprocess, and tears everything down after the run. Your real DATABASE_URL and credentials are never read — quelltest uses its own short-lived containers only.",
   },
   {
     q: "Does Quelltest work with FastAPI or async code?",
@@ -128,7 +132,7 @@ export default function Home() {
             <div className="py-6">
               <div className="inline-flex items-center gap-2 text-xs text-[#777] border border-[#1a1a1a] rounded-full px-3.5 py-1.5 mb-8 bg-[#0a0a0a]">
                 <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                quelltest 0.9.8 — GitHub Action · guard clause scanner
+                quelltest 1.0.0 — QuellGraph · container engine · confidence scorer
               </div>
 
               <h1 className="text-4xl md:text-5xl font-bold tracking-tight leading-[1.1] mb-5">
@@ -143,7 +147,8 @@ export default function Home() {
                 Quelltest reads your Python docstrings, Pydantic models, and PySpark schemas —
                 extracts every testable requirement — generates verified pytest tests that
                 actually prove each one. Two-phase verification before anything touches disk.
-                No LLM key required.
+                Now with infrastructure-aware testing: auto-start ephemeral containers, graph-based
+                infra detection, and per-test confidence scores. No LLM key required.
               </p>
 
               <div className="flex flex-col sm:flex-row gap-3 mb-10">
@@ -168,7 +173,7 @@ export default function Home() {
               <div className="mt-8 flex items-center gap-5 text-xs text-[#444]">
                 <span className="flex items-center gap-1.5"><span className="w-1 h-1 rounded-full bg-[#444]" />no LLM needed</span>
                 <span className="flex items-center gap-1.5"><span className="w-1 h-1 rounded-full bg-[#444]" />zero false positives</span>
-                <span className="flex items-center gap-1.5"><span className="w-1 h-1 rounded-full bg-[#444]" />MIT license</span>
+                <span className="flex items-center gap-1.5"><span className="w-1 h-1 rounded-full bg-[#444]" />v1.0.0 · MIT license</span>
               </div>
             </div>
 
@@ -499,7 +504,7 @@ export default function Home() {
             </div>
             <div className="bg-[#080808] border border-[#111] rounded-xl px-5 py-4 font-mono text-xs leading-[1.9]">
               <p className="text-[#333]">{"{"}</p>
-              <p className="pl-4"><span className="text-[#555]">&quot;quell_version&quot;</span><span className="text-[#333]">: </span><span className="text-[#888]">&quot;0.6.9&quot;</span><span className="text-[#333]">,</span></p>
+              <p className="pl-4"><span className="text-[#555]">&quot;quell_version&quot;</span><span className="text-[#333]">: </span><span className="text-[#888]">&quot;1.0.0&quot;</span><span className="text-[#333]">,</span></p>
               <p className="pl-4"><span className="text-[#555]">&quot;written&quot;</span><span className="text-[#333]">: </span><span className="text-green-600">6</span><span className="text-[#333]">,</span></p>
               <p className="pl-4"><span className="text-[#555]">&quot;fails_on_correct&quot;</span><span className="text-[#333]">: </span><span className="text-yellow-700">0</span><span className="text-[#333]">,</span></p>
               <p className="pl-4"><span className="text-[#555]">&quot;doesnt_catch_violation&quot;</span><span className="text-[#333]">: </span><span className="text-green-600">0</span><span className="text-[#333]">,</span></p>
