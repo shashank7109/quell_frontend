@@ -111,6 +111,7 @@ export default function Home() {
             <Link href="#faq" className="hover:text-white transition-colors">FAQ</Link>
             <Link href="/docs" className="hover:text-white transition-colors">Docs</Link>
             <Link href="/blog" className="hover:text-white transition-colors">Blog</Link>
+            <Link href="/changelog" className="hover:text-white transition-colors">Changelog</Link>
             <a href="https://github.com/shashank7109/quelltest_lib" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">★ Star</a>
           </div>
           <div className="flex items-center gap-3">
@@ -505,10 +506,12 @@ export default function Home() {
             <div className="bg-[#080808] border border-[#111] rounded-xl px-5 py-4 font-mono text-xs leading-[1.9]">
               <p className="text-[#333]">{"{"}</p>
               <p className="pl-4"><span className="text-[#555]">&quot;quell_version&quot;</span><span className="text-[#333]">: </span><span className="text-[#888]">&quot;1.0.0&quot;</span><span className="text-[#333]">,</span></p>
-              <p className="pl-4"><span className="text-[#555]">&quot;written&quot;</span><span className="text-[#333]">: </span><span className="text-green-600">6</span><span className="text-[#333]">,</span></p>
-              <p className="pl-4"><span className="text-[#555]">&quot;fails_on_correct&quot;</span><span className="text-[#333]">: </span><span className="text-yellow-700">0</span><span className="text-[#333]">,</span></p>
-              <p className="pl-4"><span className="text-[#555]">&quot;doesnt_catch_violation&quot;</span><span className="text-[#333]">: </span><span className="text-green-600">0</span><span className="text-[#333]">,</span></p>
-              <p className="pl-4"><span className="text-[#555]">&quot;spec_sources&quot;</span><span className="text-[#333]">: [</span><span className="text-[#888]">&quot;docstring&quot;, &quot;pydantic&quot;, &quot;pyspark&quot;</span><span className="text-[#333]">],</span></p>
+              <p className="pl-4"><span className="text-[#555]">&quot;target&quot;</span><span className="text-[#333]">: </span><span className="text-[#888]">&quot;quell&quot;</span><span className="text-[#333]">,</span></p>
+              <p className="pl-4"><span className="text-[#555]">&quot;total_requirements&quot;</span><span className="text-[#333]">: </span><span className="text-[#888]">58</span><span className="text-[#333]">,</span></p>
+              <p className="pl-4"><span className="text-[#555]">&quot;verified_and_written&quot;</span><span className="text-[#333]">: </span><span className="text-green-600">12</span><span className="text-[#333]">,</span></p>
+              <p className="pl-4"><span className="text-[#555]">&quot;rejected_fails_on_correct&quot;</span><span className="text-[#333]">: </span><span className="text-yellow-700">7</span><span className="text-[#333]">,</span></p>
+              <p className="pl-4"><span className="text-[#555]">&quot;rejected_no_catch&quot;</span><span className="text-[#333]">: </span><span className="text-yellow-700">8</span><span className="text-[#333]">,</span></p>
+              <p className="pl-4"><span className="text-[#555]">&quot;spec_sources&quot;</span><span className="text-[#333]">: [</span><span className="text-[#888]">&quot;docstring&quot;, &quot;pydantic&quot;, &quot;code_guard&quot;</span><span className="text-[#333]">],</span></p>
               <p className="pl-4 text-[#333]">&quot;_note&quot;: &quot;No source code. Safe to share.&quot;</p>
               <p className="text-[#333]">{"}"}</p>
             </div>
