@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import Footer from "@/components/Footer";
 
 export const metadata: Metadata = {
   title: "Changelog — Quell",
@@ -119,7 +120,7 @@ export default function ChangelogPage() {
         </div>
       </nav>
 
-      <main className="pt-24 pb-24 px-6">
+      <main className="pt-20 md:pt-24 pb-16 md:pb-24 px-4 sm:px-6">
         <div className="max-w-2xl mx-auto">
           {/* Header */}
           <div className="mb-14">
@@ -403,6 +404,7 @@ export default function ChangelogPage() {
           </div>
         </div>
       </main>
+      <Footer />
     </div>
   );
 }

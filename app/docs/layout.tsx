@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
-import DocsHeader from "@/components/docs/DocsHeader";
-import DocsSidebar from "@/components/docs/DocsSidebar";
+import DocsLayoutClient from "@/components/docs/DocsLayoutClient";
 
 export const metadata: Metadata = {
   title: {
@@ -8,20 +7,10 @@ export const metadata: Metadata = {
     template: "%s | Quell Docs",
   },
   description:
-    "Complete documentation for Quell — the mutation testing tool that auto-generates verified killing tests.",
+    "Complete documentation for Quell v2.0.0 — edge case finder, three-bucket output, 5-gate pipeline, Production Readiness Score.",
   robots: { index: true, follow: true },
 };
 
 export default function DocsLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="min-h-screen bg-black text-white">
-      <DocsHeader />
-      <div className="flex pt-[57px]">
-        <DocsSidebar />
-        <main className="flex-1 ml-[240px] min-w-0">
-          {children}
-        </main>
-      </div>
-    </div>
-  );
+  return <DocsLayoutClient>{children}</DocsLayoutClient>;
 }

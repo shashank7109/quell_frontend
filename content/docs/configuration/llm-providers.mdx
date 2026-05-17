@@ -1,51 +1,102 @@
 ---
 title: LLM Providers
-description: Configure Anthropic, OpenAI, or Ollama for complex spec analysis and bug reproduction.
+description: Configure an LLM provider for complex edge cases and bug reproduction. Auth setup, BYO key, and privacy details.
 ---
 
 # LLM Providers
 
-Quell's rule engine handles structured specs (docstrings, Pydantic models) deterministically — no LLM required. LLM is only called for:
+The rule engine handles ~75% of edge cases with zero network calls — pure AST analysis, no LLM, no API key. LLM is only called for:
 
-- `quell reproduce` — converting natural language bug descriptions into tests
-- Complex or ambiguous specs that the rule engine can't parse
+- `quell reproduce` — turning a natural language bug description into a failing test
+- Complex or unstructured specs the rule engine cannot parse (~25% of cases)
 
 <Callout type="info">
-  If you only use `quell check` and `quell score`, you don't need to configure an LLM at all.
+  **You do not need an LLM key to use `quell find`.** Run it on any Python project right now: `pip install quelltest && quell find src/`. No auth required.
 </Callout>
 
-## Anthropic (Claude)
+## Three ways to use the LLM fallback
 
-**Best for:** High-quality test generation, complex specs.
+| Mode | How | Who it's for |
+|------|-----|-------------|
+| **Free (rule engine only)** | No auth, no config. Works out of the box. | Everyone |
+| **BYO key** | `quell auth set --provider <provider> --key <key>` | Developers with their own API key |
+| **Pro (Quell-managed)** | `quell auth login` — OAuth flow, no key handling | Teams and Pro subscribers |
+
+## Checking your auth status
 
 ```bash
-export ANTHROPIC_API_KEY=sk-ant-...
+quell auth status
+# Provider: anthropic (byo)
+# Tier: free
+# Last validated: 2026-05-17
+```
+
+## BYO key setup
+
+Store your key securely with `quell auth set`. Quell uses the OS keyring where available — never plaintext.
+
+```bash
+quell auth set --provider anthropic --key sk-ant-...
+quell auth set --provider openai    --key sk-...
+quell auth set --provider ollama              # no key needed
+```
+
+Then enable the fallback in `pyproject.toml`:
+
+```toml
+[tool.quell]
+use_llm = true
+llm_provider = "anthropic"   # anthropic | openai | ollama | none
+llm_model = "claude-sonnet-4-6"
+```
+
+## Pro / Team (Quell-managed key)
+
+```bash
+quell auth login
+# Opens browser → OAuth flow → token saved
+```
+
+Pro subscribers do not manage API keys. Quell handles rate limits, costs, and model upgrades.
+
+```bash
+quell auth logout    # Remove stored credentials
+quell auth status    # Show active provider, tier, expiry
+```
+
+## Provider reference
+
+### Anthropic (Claude)
+
+```bash
+quell auth set --provider anthropic --key sk-ant-...
 ```
 
 ```toml
-# pyproject.toml
 [tool.quell]
 llm_provider = "anthropic"
-llm_model = "claude-sonnet-4-5"   # or claude-opus-4-7
+llm_model = "claude-sonnet-4-6"   # or claude-opus-4-7
+use_llm = true
 ```
 
-Supported models: any `claude-*` model. `claude-sonnet-4-5` is recommended for a good balance of quality and cost.
+All `claude-*` model IDs are supported. `claude-sonnet-4-6` is recommended for a good balance of quality and cost.
 
-## OpenAI (GPT-4)
+### OpenAI (GPT-4)
 
 ```bash
-export OPENAI_API_KEY=sk-...
+quell auth set --provider openai --key sk-...
 ```
 
 ```toml
 [tool.quell]
 llm_provider = "openai"
 llm_model = "gpt-4o"
+use_llm = true
 ```
 
-## Ollama (local, offline)
+### Ollama (local, fully offline)
 
-Run LLM inference locally — no API key, no data leaves your machine.
+Run inference locally — no API key, no data leaves your machine.
 
 ```bash
 # Install Ollama: https://ollama.ai
@@ -57,32 +108,56 @@ ollama pull codellama
 llm_provider = "ollama"
 llm_model = "codellama"
 ollama_base_url = "http://localhost:11434"
+use_llm = true
 ```
 
 <Callout type="tip">
-  For Python code, `codellama` or `deepseek-coder` tend to produce better tests than general models.
+  `codellama` or `deepseek-coder` produce better Python tests than general-purpose models. For fully offline use with zero data exposure, Ollama is the recommended choice.
 </Callout>
+
+### Disable LLM entirely
+
+```toml
+[tool.quell]
+use_llm = false      # default — rule engine only
+llm_provider = "none"
+```
 
 ## What the LLM receives
 
-When Quell calls the LLM, it sends only:
+When Quell calls the LLM, it sends **only**:
 
-1. The requirement description and constraint kind
-2. The target function's source code
-3. The spec text (docstring or bug description)
-4. Clear instructions: write a pytest test that PASSES on correct code and FAILS on violated code
+1. The constraint kind (`MUST_RAISE`, `BOUNDARY`, etc.)
+2. The target function's source code (that one function only)
+3. The spec text — the docstring excerpt or bug description
+4. Instructions: write a pytest test that PASSES on correct code, FAILS on violated code
 
-**What is NOT sent:**
+**Never sent:**
 - Other files in your project
 - Environment variables or secrets
-- Database schemas or configuration
+- Database schemas, configs, or connection strings
+
+Run `quell auth status --privacy` to see exactly what gets sent for your current configuration.
+
+## Key storage
+
+Keys are stored at:
+
+| OS | Path |
+|----|------|
+| Linux / macOS | `~/.config/quell/auth.json` (mode 0600) |
+| Windows | `%APPDATA%\quell\auth.json` |
+
+Quell uses the OS keyring (`keyring` package) where available. If keyring is unavailable, the key is obfuscated but never stored in plaintext. It is never written to `pyproject.toml`, `.env`, or any project file.
 
 ## Cost estimates
 
-LLM is called at most once per uncovered requirement (and only if the rule engine can't handle it).
+LLM is called at most once per uncovered edge case — only when the rule engine returns `None`.
 
-| Provider | Model | Cost per generated test |
-|----------|-------|------------------------|
-| Anthropic | claude-sonnet-4-5 | ~$0.001 |
+| Provider | Model | Approx cost per generated test |
+|----------|-------|-------------------------------|
+| Anthropic | claude-sonnet-4-6 | ~$0.001 |
 | OpenAI | gpt-4o | ~$0.002 |
 | Ollama | local | $0 |
+
+On a typical project with 20 edge cases, ~5 of them reach the LLM fallback — total cost under $0.01.

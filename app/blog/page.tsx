@@ -4,6 +4,7 @@ import Image from "next/image";
 import { ArrowRight } from "lucide-react";
 import { getAllBlogPosts } from "@/lib/blog";
 import type { BlogPost } from "@/lib/blog";
+import Footer from "@/components/Footer";
 
 export const metadata: Metadata = {
   title: "Blog — Python Testing, Edge Cases, and Production Readiness",
@@ -156,7 +157,7 @@ export default function BlogIndexPage() {
         </div>
       </nav>
 
-      <main className="pt-24 pb-20 px-6">
+      <main className="pt-20 md:pt-24 pb-16 md:pb-20 px-4 sm:px-6">
         <div className="max-w-5xl mx-auto">
 
           {/* Header */}
@@ -197,6 +198,7 @@ export default function BlogIndexPage() {
           )}
         </div>
       </main>
+      <Footer />
     </div>
   );
 }

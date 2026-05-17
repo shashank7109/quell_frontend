@@ -5,6 +5,7 @@ import { ArrowRight } from "lucide-react";
 import CopyCommand from "@/components/CopyCommand";
 import FaqItem from "@/components/FaqItem";
 import PricingSection from "@/components/PricingSection";
+import Footer from "@/components/Footer";
 
 export const metadata: Metadata = {
   title: "Quell — Find untested edge cases in your Python code",
@@ -1051,25 +1052,7 @@ export default function Home() {
 
       </main>
 
-      {/* ── Footer ── */}
-      <footer className="py-10 px-6 border-t border-[#111]">
-        <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2.5">
-            <Image src="/quell_icon.png" alt="Quell" width={16} height={16} className="opacity-40" />
-            <span className="text-[#555] text-sm">© 2026 Quelltest. MIT License.</span>
-          </div>
-          <nav aria-label="Footer navigation">
-            <div className="flex items-center gap-6 text-sm text-[#666]">
-              <a href="https://github.com/quelltest/quelltest-lib" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">GitHub</a>
-              <Link href="/docs" className="hover:text-white transition-colors">Docs</Link>
-              <Link href="/blog" className="hover:text-white transition-colors">Blog</Link>
-              <Link href="/changelog" className="hover:text-white transition-colors">Changelog</Link>
-              <Link href="#faq" className="hover:text-white transition-colors">FAQ</Link>
-              <Link href="/auth/sign-in" className="hover:text-white transition-colors">Sign in</Link>
-            </div>
-          </nav>
-        </div>
-      </footer>
+      <Footer />
 
     </div>
   );

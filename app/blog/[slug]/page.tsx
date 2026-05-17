@@ -9,6 +9,7 @@ import { blogComponents } from "@/components/blog/BlogMdxComponents";
 import { sanitizeMdxContent } from "@/lib/mdx-safe";
 import { ChevronLeft } from "lucide-react";
 import BlogViewCounter from "@/components/BlogViewCounter";
+import Footer from "@/components/Footer";
 
 
 const BASE_URL = "https://quell.buildsbyshashank.tech";
@@ -116,7 +117,7 @@ export default async function BlogPostPage({ params }: Props) {
         </div>
       </nav>
 
-      <main className="pt-24 pb-20 px-6">
+      <main className="pt-20 md:pt-24 pb-16 md:pb-20 px-4 sm:px-6">
         <div className="max-w-2xl mx-auto">
           {/* Back */}
           <Link
@@ -179,7 +180,7 @@ export default async function BlogPostPage({ params }: Props) {
                 Read the docs
               </Link>
               <a
-                href="https://github.com/shashank7109/quelltest_lib"
+                href="https://github.com/quelltest/quelltest-lib"
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex items-center justify-center gap-2 border border-[#1a1a1a] text-[#555] font-medium px-5 py-2.5 rounded-lg hover:text-white hover:border-[#2a2a2a] transition-colors text-sm"
@@ -190,6 +191,7 @@ export default async function BlogPostPage({ params }: Props) {
           </div>
         </div>
       </main>
+      <Footer />
     </div>
   );
 }
