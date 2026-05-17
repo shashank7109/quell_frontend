@@ -2,13 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Changelog — Quelltest",
+  title: "Changelog — Quell",
   description:
-    "Full release history of Quelltest — from v0.1.0 initial release to v1.0.0 infrastructure-aware verified testing.",
+    "Full release history of Quell — from v0.1.0 initial release to v2.0.0 three-bucket output and Production Readiness Score.",
   alternates: { canonical: "https://quell.buildsbyshashank.tech/changelog" },
   openGraph: {
-    title: "Quelltest Changelog",
-    description: "Every release from v0.1.0 to v1.0.0 with what changed and why.",
+    title: "Quell Changelog",
+    description: "Every release from v0.1.0 to v2.0.0 with what changed and why.",
     url: "https://quell.buildsbyshashank.tech/changelog",
     type: "website",
   },
@@ -130,7 +130,7 @@ export default function ChangelogPage() {
               Changelog
             </h1>
             <p className="text-[#666] text-sm leading-relaxed max-w-lg">
-              Every release from first commit to v1.0.0. Dates are UTC.
+              Every release from first commit to v2.0.0. Dates are UTC.
               Source on{" "}
               <a
                 href="https://github.com/quelltest/quelltest-lib"
@@ -147,8 +147,46 @@ export default function ChangelogPage() {
           {/* ── Timeline ── */}
           <div>
 
+            {/* v2.0.0 */}
+            <Release version="v2.0.0" date="2026-05-17" tag="major" highlight>
+              <p className="text-[#e2e2e2] font-medium mb-2">Three-Bucket Output + Production Readiness Score</p>
+              <Bullet>
+                <strong className="text-[#ccc]">quell find</strong> — new primary command; auto-detects all spec sources;{" "}
+                <Code>--fix</Code> writes WRITTEN tests, <Code>--auto</Code> skips confirmation,{" "}
+                <Code>--format github</Code> for CI annotations, <Code>--use-llm</Code> enables Groq fallback
+              </Bullet>
+              <Bullet>
+                <strong className="text-[#ccc]">Three-bucket output</strong> — WRITTEN (verified, written to disk),
+                SCAFFOLDED (stubs in <Code>tests/scaffold/</Code> with <Code># quell: complete assertion</Code>),
+                FLAGGED (one-line reason per item; nothing dropped silently)
+              </Bullet>
+              <Bullet>
+                <strong className="text-[#ccc]">5-gate pipeline</strong> — Gate 1 AST validity, Gate 2 originality,
+                Gate 3 security, Gate 4 passes on correct code, Gate 5 fails on violated code; only 5/5 survivors
+                become WRITTEN
+              </Bullet>
+              <Bullet>
+                <strong className="text-[#ccc]">Production Readiness Score (PRS)</strong> — 0–100 score across WRITTEN
+                tests and confidence values; +5 if FLAGGED items documented; -10 if HIGH test skipped; tiers
+                GREEN≥80 / YELLOW≥60 / RED&lt;60; posted as PR comment by GitHub Action
+              </Bullet>
+              <Bullet>
+                <strong className="text-[#ccc]">Groq LLM provider</strong> — new default provider (llama-3.3-70b-versatile);
+                configure with <Code>quell auth set --provider groq --key sk-...</Code>; LLM is opt-in
+                (<Code>use_llm = false</Code> by default)
+              </Bullet>
+              <Bullet>
+                <strong className="text-[#ccc]">quell init v2.0.0 defaults</strong> — writes groq, prs_threshold=60,
+                scaffold_dir; auto-adds scaffold dir to .gitignore
+              </Bullet>
+              <Bullet>
+                <strong className="text-[#ccc]">quell score rewrite</strong> — reads PRS from quell-report.json;
+                <Code>--badge</Code> SVG; <Code>--json</Code> machine-readable
+              </Bullet>
+            </Release>
+
             {/* v1.0.0 */}
-            <Release version="v1.0.0" date="2026-05-16" tag="major" highlight>
+            <Release version="v1.0.0" date="2026-05-16" tag="major">
               <p className="text-[#e2e2e2] font-medium mb-2">Infrastructure-Aware Verified Testing</p>
               <Bullet>
                 <strong className="text-[#ccc]">QuellGraph</strong> — persistent SQLite code-intelligence graph at{" "}

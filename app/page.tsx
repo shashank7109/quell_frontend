@@ -72,15 +72,15 @@ const FAQS = [
   },
   {
     q: "Can I run Quelltest in CI/CD?",
-    a: "Yes — and it's the primary use case. quell install --pr writes a ready-made GitHub Actions workflow in one command. The composite action (uses: shashank7109/quelltest_lib@main) scans every PR, posts inline diff annotations, and an idempotent PR comment. Set fail-on-gaps: 'true' to block merges. No API key or LLM needed.",
+    a: "Yes — and it's the primary use case. quell install --action writes a ready-made GitHub Actions workflow in one command. On every PR it runs quell find --format github, posts inline annotations on untested lines, and comments a PRS summary with a tier emoji (🟢/🟡/🔴). No API key or LLM needed.",
   },
   {
     q: "What is QuellGraph and do I need it?",
-    a: "QuellGraph is a persistent SQLite code-intelligence graph built from your project's AST. It tracks which functions transitively depend on infrastructure (postgres, redis, localstack, etc.) via BFS across call chains — even when sqlalchemy is 3 hops away. Run `quell graph build src/` once; subsequent runs are incremental (only changed files re-parsed). QuellGraph is optional — `quell check` works without it, but `--with-containers` requires it.",
+    a: "QuellGraph is a persistent SQLite code-intelligence graph built from your project's AST. It tracks which functions transitively depend on infrastructure (postgres, redis, localstack, etc.) via BFS across call chains — even when sqlalchemy is 3 hops away. Run `quell graph build src/` once; subsequent runs are incremental (only changed files re-parsed). QuellGraph is optional — `quell find` works without it, but `--with-containers` requires it.",
   },
   {
     q: "What does --with-containers do?",
-    a: "When you pass `quell check src/ --with-containers`, Quelltest reads the QuellGraph to find which functions need infrastructure, auto-starts throwaway Docker containers (postgres, redis, localstack, etc.) with hardcoded ephemeral credentials, injects connection URLs into the test subprocess, and tears everything down after the run. Your real DATABASE_URL and credentials are never read — quelltest uses its own short-lived containers only.",
+    a: "When you pass `quell find src/ --with-containers`, Quell reads the QuellGraph to find which functions need infrastructure, auto-starts throwaway Docker containers (postgres, redis, localstack, etc.) with hardcoded ephemeral credentials, injects connection URLs into the test subprocess, and tears everything down after the run. Your real DATABASE_URL and credentials are never read — Quell uses its own short-lived containers only.",
   },
   {
     q: "Does Quelltest work with FastAPI or async code?",
@@ -112,7 +112,7 @@ export default function Home() {
             <Link href="/docs" className="hover:text-white transition-colors">Docs</Link>
             <Link href="/blog" className="hover:text-white transition-colors">Blog</Link>
             <Link href="/changelog" className="hover:text-white transition-colors">Changelog</Link>
-            <a href="https://github.com/shashank7109/quelltest_lib" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">★ Star</a>
+            <a href="https://github.com/quelltest/quelltest-lib" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">★ Star</a>
           </div>
           <div className="flex items-center gap-3">
             <Link href="/auth/sign-in" className="text-sm text-[#777] hover:text-white transition-colors">Sign in</Link>
@@ -160,7 +160,7 @@ export default function Home() {
                   Start for free <ArrowRight size={13} />
                 </Link>
                 <a
-                  href="https://github.com/shashank7109/quelltest_lib"
+                  href="https://github.com/quelltest/quelltest-lib"
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex items-center justify-center gap-2 border border-[#1a1a1a] text-[#777] font-medium px-5 py-2.5 rounded-lg hover:text-white hover:border-[#2a2a2a] transition-colors text-sm"
@@ -174,7 +174,7 @@ export default function Home() {
               <div className="mt-8 flex items-center gap-5 text-xs text-[#444]">
                 <span className="flex items-center gap-1.5"><span className="w-1 h-1 rounded-full bg-[#444]" />no LLM needed</span>
                 <span className="flex items-center gap-1.5"><span className="w-1 h-1 rounded-full bg-[#444]" />zero false positives</span>
-                <span className="flex items-center gap-1.5"><span className="w-1 h-1 rounded-full bg-[#444]" />v1.0.0 · MIT license</span>
+                <span className="flex items-center gap-1.5"><span className="w-1 h-1 rounded-full bg-[#444]" />v2.0.0 · MIT license</span>
               </div>
             </div>
 
@@ -189,43 +189,31 @@ export default function Home() {
               <div className="p-5 space-y-1 leading-[1.8]">
                 <p>
                   <span className="text-[#333]">$ </span>
-                  <span className="text-[#e2e2e2]">quell check src/ --fix --no-llm</span>
+                  <span className="text-[#e2e2e2]">quell find src/ --fix</span>
                 </p>
-                <p className="text-[#3a3a3a]">  scanning 3 spec sources...</p>
+                <p className="text-[#3a3a3a]">  scanning 12 file(s)...</p>
                 <p className="text-[#2a2a2a] pt-1">  ─────────────────────────────────────</p>
                 <p>
-                  <span className="text-[#444]">  process_payment  </span>
-                  <span className="text-yellow-700">MUST_RAISE  </span>
-                  <span className="text-green-600">✓ verified</span>
+                  <span className="text-green-600">✓ WRITTEN  </span>
+                  <span className="text-[#555]">(8)   Passed all 5 gates.</span>
                 </p>
+                <p className="text-[#3a3a3a] pl-4">→ tests/test_payments.py  confidence: 94% [HIGH]</p>
+                <p className="text-[#3a3a3a] pl-4">→ tests/test_auth.py      confidence: 88% [HIGH]</p>
+                <p className="pt-1">
+                  <span className="text-yellow-600">⚠ SCAFFOLDED </span>
+                  <span className="text-[#555]">(3)  Complete the assertion.</span>
+                </p>
+                <p className="text-[#3a3a3a] pl-4">→ tests/scaffold/test_billing.py</p>
+                <p className="pt-1">
+                  <span className="text-red-800">✗ FLAGGED  </span>
+                  <span className="text-[#555]">(2)  Cannot auto-test.</span>
+                </p>
+                <p className="text-[#3a3a3a] pl-4">→ src/billing.py:142  external API</p>
+                <p className="text-[#2a2a2a] pt-1">  ─────────────────────────────────────</p>
                 <p>
-                  <span className="text-[#444]">  process_payment  </span>
-                  <span className="text-yellow-700">MUST_RETURN </span>
-                  <span className="text-green-600">✓ verified</span>
+                  <span className="text-green-600">PRS  84/100  🟢 </span>
+                  <span className="text-[#555]">Production Ready</span>
                 </p>
-                <p>
-                  <span className="text-[#444]">  PaymentRequest   </span>
-                  <span className="text-yellow-700">BOUNDARY    </span>
-                  <span className="text-green-600">✓ verified</span>
-                </p>
-                <p>
-                  <span className="text-[#444]">  PaymentRequest   </span>
-                  <span className="text-yellow-700">ENUM_VALID  </span>
-                  <span className="text-green-600">✓ verified</span>
-                </p>
-                <p>
-                  <span className="text-[#444]">  payment_schema   </span>
-                  <span className="text-yellow-700">NOT_NULL    </span>
-                  <span className="text-green-600">✓ verified</span>
-                </p>
-                <p>
-                  <span className="text-[#444]">  payment_schema   </span>
-                  <span className="text-yellow-700">TYPE_CHECK  </span>
-                  <span className="text-green-600">✓ verified</span>
-                </p>
-                <p className="text-[#2a2a2a]">  ─────────────────────────────────────</p>
-                <p className="text-green-600">  6 tests written → tests/test_payments.py</p>
-                <p className="text-[#444]">  Score: 100% (6/6 covered)</p>
                 <p className="text-[#2a2a2a]">  Your code never left your machine.</p>
                 <p className="pt-2 text-[#333]">$ <span className="animate-pulse">▋</span></p>
               </div>
@@ -323,7 +311,7 @@ export default function Home() {
                   body: "Quelltest scans Python docstrings (Raises:, Returns:, Args: sections), Pydantic models (Field validators, Literal type annotations), and PySpark StructType definitions — all via AST, no imports, no test execution.",
                   snippet: [
                     { t: "dim", v: "$ " },
-                    { t: "white", v: "quell check src/ --no-llm" },
+                    { t: "white", v: "quell find src/" },
                     { t: "nl" },
                     { t: "muted", v: "  [docstring]  MUST_RAISE  ValueError: amount <= 0" },
                     { t: "nl" },
@@ -463,20 +451,24 @@ export default function Home() {
                   desc: "Generate and verify failing tests for every untested guard clause.",
                 },
                 {
-                  cmd: "quell check src/ --no-llm",
-                  desc: "Scan docstrings + Pydantic models for requirement gaps.",
+                  cmd: "quell find src/",
+                  desc: "Find all untested edge cases — shows WRITTEN / SCAFFOLDED / FLAGGED buckets.",
                 },
                 {
-                  cmd: "quell check src/ --fix --no-llm",
-                  desc: "Generate and verify tests for every uncovered requirement.",
+                  cmd: "quell find src/ --fix",
+                  desc: "Write WRITTEN tests to disk. Each test passed all 5 gates.",
                 },
                 {
-                  cmd: "quell pr <PR_NUMBER> --comment",
-                  desc: "Post a coverage gap report as a PR comment.",
+                  cmd: "quell find src/ --fix --auto",
+                  desc: "Skip confirmation prompts — use in CI pipelines.",
                 },
                 {
-                  cmd: "quell install --pr",
-                  desc: "Write the GitHub Actions workflow to your repo in one command.",
+                  cmd: "quell score --badge",
+                  desc: "Print Production Readiness Score and SVG badge.",
+                },
+                {
+                  cmd: "quell install --action",
+                  desc: "Write the GitHub Actions workflow — posts PRS comment on every PR.",
                 },
               ].map((item) => (
                 <div key={item.cmd} className="bg-[#080808] border border-[#111] rounded-xl px-5 py-4">
@@ -554,12 +546,11 @@ export default function Home() {
                     inline diff warnings, and posts an idempotent summary comment.
                   </p>
                   <div className="bg-[#060606] border border-[#111] rounded-lg px-4 py-3 font-mono text-[11px] text-[#444] leading-[1.8] mb-4">
-                    <p className="text-[#2a2a2a]"># .github/workflows/quell.yml</p>
-                    <p><span className="text-[#555]">uses</span>: shashank7109/quelltest_lib@main</p>
+                    <p className="text-[#2a2a2a]"># generated by: quell install --action</p>
+                    <p><span className="text-[#555]">uses</span>: quelltest/quelltest-lib@v2.0.0</p>
                     <p className="pl-2"><span className="text-[#555]">with</span>:</p>
-                    <p className="pl-4">target: <span className="text-[#888]">&apos;.&apos;</span></p>
-                    <p className="pl-4">post-comment: <span className="text-[#888]">&apos;true&apos;</span></p>
-                    <p className="pl-4">fail-on-gaps: <span className="text-[#888]">&apos;false&apos;</span></p>
+                    <p className="pl-4">source-dir: <span className="text-[#888]">&apos;src/&apos;</span></p>
+                    <p className="pl-4">prs-threshold: <span className="text-[#888]">&apos;60&apos;</span></p>
                   </div>
                   <div className="text-[#555] text-[11px] mb-4 space-y-1">
                     <p className="flex items-center gap-2"><span className="text-green-700">✓</span> Inline diff annotations per guard clause</p>
@@ -679,7 +670,7 @@ export default function Home() {
             <p className="text-[#666] text-sm mt-10">
               More questions?{" "}
               <a
-                href="https://github.com/shashank7109/quelltest_lib/discussions"
+                href="https://github.com/quelltest/quelltest-lib/discussions"
                 target="_blank"
                 rel="noreferrer"
                 className="text-[#888] hover:text-white transition-colors underline underline-offset-2"
@@ -709,7 +700,7 @@ export default function Home() {
           </div>
           <nav aria-label="Footer navigation">
             <div className="flex items-center gap-6 text-sm text-[#666]">
-              <a href="https://github.com/shashank7109/quelltest_lib" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">GitHub</a>
+              <a href="https://github.com/quelltest/quelltest-lib" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">GitHub</a>
               <Link href="/docs" className="hover:text-white transition-colors">Docs</Link>
               <Link href="/blog" className="hover:text-white transition-colors">Blog</Link>
               <Link href="#faq" className="hover:text-white transition-colors">FAQ</Link>

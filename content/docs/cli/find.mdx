@@ -1,0 +1,118 @@
+---
+title: quell find
+description: Scan for untested edge cases and write verified tests — the primary Quell command.
+---
+
+# quell find
+
+`quell find` is the primary Quell command. It scans your source code for untested edge cases, runs each candidate through a 5-gate pipeline, and outputs three buckets: **WRITTEN**, **SCAFFOLDED**, and **FLAGGED**.
+
+## Usage
+
+```bash
+quell find [TARGET] [OPTIONS]
+```
+
+`TARGET` defaults to `.` (current directory).
+
+## Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--fix` | off | Write WRITTEN tests to disk |
+| `--auto` | off | Skip confirmation prompts (use in CI) |
+| `--use-llm` | off | Enable LLM fallback for harder cases |
+| `--format` | `console` | Output format: `console` or `github` |
+| `--root` | `.` | Project root |
+
+## Examples
+
+```bash
+# Find all untested edge cases
+quell find src/
+
+# Find and write tests
+quell find src/ --fix
+
+# CI — find, write, skip prompts
+quell find src/ --fix --auto
+
+# GitHub Actions — emit annotation syntax
+quell find src/ --format github
+
+# Enable LLM fallback (requires quell auth set)
+quell find src/ --fix --use-llm
+```
+
+## Three-bucket output
+
+```
+Quell Scan — reading edge cases in 12 file(s)
+
+✓ WRITTEN  (8)    Tests written to disk. Passed all 5 gates.
+                  → tests/test_payments.py        confidence: 94%  [HIGH]
+                  → tests/test_auth.py            confidence: 88%  [HIGH]
+
+⚠ SCAFFOLDED (9)  Stubs written. Complete the assertion.
+                  → tests/scaffold/test_billing.py
+                  → tests/scaffold/test_user.py
+
+✗ FLAGGED  (6)    Cannot auto-test. Here's why.
+                  → src/billing.py:142  depends on external API
+                  → src/user.py:87     no violation injectable
+
+─────────────────────────────────────────────────────
+PRS  72/100  🟡 Review Needed
+Edge case coverage: 73%  |  Avg confidence: 85%
+```
+
+## The 5-gate pipeline
+
+Every candidate test passes 5 gates before being written:
+
+| Gate | Check | Failure routes to |
+|------|-------|------------------|
+| 1 | AST valid + imports resolve | SCAFFOLDED |
+| 2 | Originality (no copy-paste) | SCAFFOLDED |
+| 3 | Security (no forbidden ops) | SCAFFOLDED |
+| 4 | Passes on correct code | SCAFFOLDED |
+| 5 | Fails on violated code | SCAFFOLDED |
+
+Tests that pass gates 1–5 become **WRITTEN**. Tests that fail any gate become **SCAFFOLDED** stubs.
+
+## SCAFFOLDED stubs
+
+When a test can't pass all 5 gates, Quell writes a stub to `tests/scaffold/test_<module>.py`:
+
+```python
+# quell: scaffold — complete the assertions below and move to your test suite
+def test_quell_scaffold_pay_req_abc123():
+    """
+    Quell scaffold — gates passed: 2/5
+
+    Constraint: raises ValueError when amount <= 0
+    Source    : src/payments.py:12
+    Kind      : MUST_RAISE
+    """
+    from payments import pay
+    # quell: complete assertion
+    # TODO: call pay() and assert the edge case behaviour
+    pass
+```
+
+The scaffold dir is auto-added to `.gitignore` by `quell init`. Move completed stubs to your main test suite.
+
+## Report file
+
+Every `quell find` run writes `quell-report.json` to the project root. This file is read by `quell score` and the GitHub Action.
+
+## CI usage
+
+```yaml
+- name: Quell edge case scan
+  run: |
+    pip install quelltest
+    quell find src/ --fix --auto --format github
+```
+
+Or use `quell install --action` to get a full workflow with PRS comment.

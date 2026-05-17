@@ -1,23 +1,54 @@
 ---
 title: How It Works
-description: Architecture and core design decisions behind Quell.
+description: The 5-gate pipeline, three-bucket output, and Production Readiness Score.
 ---
 
 # How It Works
 
-Quell has four stages: **Read → Check → Verify → Write**. Each stage is independent, reversible, and safe by default.
+Quell has five stages: **Read → Check → Generate → 5-Gate Pipeline → Route**. Each candidate test is routed to one of three buckets based on how many gates it passes.
+
+## Overview
+
+```
+Spec readers (docstrings, Pydantic, PySpark)
+        │
+        ▼
+  list[Requirement]
+        │
+        ▼
+Coverage checker (AST scan — no test execution)
+        │
+        ▼
+Test synthesizer
+  Rule engine  → handles ~75% of requirements (no network)
+  LLM engine   → fallback for complex cases (opt-in)
+        │
+        ▼
+5-Gate Pipeline
+  Gate 1: AST valid + imports resolve
+  Gate 2: Originality (AST fingerprint + n-gram)
+  Gate 3: Security (no forbidden operations)
+  Gate 4: Passes on correct code
+  Gate 5: Fails on violated code
+        │
+        ▼
+Three-bucket routing
+  WRITTEN    → passed all 5 gates → written to disk
+  SCAFFOLDED → failed any gate   → stub written to tests/scaffold/
+  FLAGGED    → cannot synthesize → reason shown, no file written
+```
 
 ## Stage 1: Read specs
 
-Quell reads specifications that already exist in your codebase. Each spec reader returns a list of `Requirement` objects.
+Quell reads specifications that already exist in your codebase. Each spec reader returns a list of `Requirement` objects and returns `[]` on any error — they never raise.
 
 ### Docstring reader
 
 Parses Google-style and plain docstrings:
 
-- `Raises:` blocks → `MUST_RAISE` requirements
+- `Raises:` blocks → `MUST_RAISE` requirements (multi-line conditions captured)
 - `Returns:` blocks → `MUST_RETURN` requirements
-- Boundary phrases ("must be greater than 0", "cannot exceed") → `BOUNDARY` requirements
+- Boundary phrases ("must be greater than 0") → `BOUNDARY` requirements
 - Enumeration phrases ("one of USD, EUR, GBP") → `ENUM_VALID` requirements
 
 ### Type reader
@@ -26,140 +57,149 @@ Reads Pydantic models and type annotations:
 
 - `Field(gt=0)`, `Field(ge=18)`, `Field(min_length=1)` → `BOUNDARY` requirements
 - `Literal["USD", "EUR", "GBP"]` fields → `ENUM_VALID` requirements
-- Function arguments with `Literal` type → `ENUM_VALID` requirements
 
 ### Bug reader
 
 Converts natural language bug descriptions into `BUG_REPRO` requirements using an LLM prompt. Used by `quell reproduce`.
 
-Every spec reader returns `[]` on any error — they never raise exceptions.
-
 ## Stage 2: Check coverage
 
 An AST-based coverage checker scans your test files and marks each `Requirement` as covered or uncovered. No test execution required.
 
-Coverage heuristics:
-
 | Requirement kind | Covered if test file contains... |
 |-----------------|----------------------------------|
 | `MUST_RAISE` | `pytest.raises(ExceptionType)` |
-| `BOUNDARY` | assertion with boundary constants (0, -1, 1) |
+| `BOUNDARY` | assertion with boundary constants |
 | `ENUM_VALID` | assertion referencing the enum values |
 | `MUST_RETURN` | assertion on the return value |
-| `BUG_REPRO` | never covered (always generates a test) |
 
 When in doubt, the checker marks a requirement as uncovered. Duplicate tests are cheaper than missed gaps.
 
-## Stage 3: Verify — The Moat
+## Stage 3: Test synthesis
 
-This is the most important stage. A test is only accepted if it satisfies **both** conditions:
+For each uncovered requirement, Quell generates a candidate test:
 
-1. **PASS on original code** — run `pytest <temp_test_file>`. If this fails, the generated test is already broken.
-2. **FAIL on violated code** — inject a violation into the source, run `pytest` again. If the test still passes, it doesn't actually prove the requirement.
+- **Rule engine** — deterministic, no LLM, no network. Handles `MUST_RAISE`, `BOUNDARY`, `ENUM_VALID`, `NOT_NULL`, `TYPE_CHECK`, `MUST_RETURN`.
+- **LLM engine** — fallback for complex or unstructured cases. Only called when rule engine returns `None` and `--use-llm` is set.
 
-Both conditions are required. A test that passes both is verified and proceeds to the writer.
+## Stage 4: The 5-gate pipeline
 
-### Violation injection
+Each candidate test passes 5 gates. Failure at any gate routes the requirement to SCAFFOLDED (not rejected — a stub is written so you can complete it).
 
-Quell injects minimal violations to trigger requirement failures:
+### Gate 1 — AST validity
+
+The generated test is parsed as Python source. Import references are checked to resolve. A test that can't parse or can't import the target function is useless as a WRITTEN test.
+
+### Gate 2 — Originality
+
+An AST fingerprint and n-gram comparison ensure the generated test doesn't duplicate an existing test. This prevents Quell from writing a test that's already covered.
+
+### Gate 3 — Security
+
+The generated test is scanned for forbidden operations: no `os.system`, no `subprocess.Popen` with shell, no file deletion, no credential reads. A test that does dangerous things is rejected at this gate.
+
+### Gate 4 — Passes on correct code
+
+The test runs in a subprocess against the **original, unmodified source**. If it fails here, the generated test is logically wrong — it doesn't match the requirement's success condition.
+
+```python
+# Gate 4: must pass
+pytest temp_test.py            # ← against original source
+```
+
+### Gate 5 — Fails on violated code
+
+Quell injects a minimal violation into the source and runs the test again. If the test still passes after the violation, it doesn't actually catch the bug.
+
+```python
+# Gate 5: must fail
+inject_violation(source)       # ← comment out raise, weaken bound, etc.
+pytest temp_test.py            # ← test must fail
+restore_source()               # ← always restored in finally block
+```
+
+Violation injection per constraint kind:
 
 | Kind | Violation |
 |------|-----------|
 | `MUST_RAISE` | Comment out the `raise` statement |
 | `BOUNDARY` | Weaken the threshold to `-9999` |
 | `MUST_RETURN` | Replace the return with `return None` |
-| `BUG_REPRO` | No injection — the bug already exists |
+| `NOT_NULL` | Remove the null check |
+| `ENUM_VALID` | Remove the enum validation guard |
 
-### Isolation
+## Stage 5: Three-bucket routing
 
-Verification always runs in a subprocess (`subprocess.run`), never in-process. This ensures:
-- Violations load fresh (no module caching)
-- Failures are isolated (a crashing test doesn't kill Quell)
-- Timeouts are enforced cleanly
+After the pipeline, each requirement lands in one bucket:
 
-### File safety
+| Bucket | Condition | Output |
+|--------|-----------|--------|
+| WRITTEN | Passed all 5 gates | Injected into test file via libcst |
+| SCAFFOLDED | Failed any gate (or no test generated) | Stub written to `tests/scaffold/` |
+| FLAGGED | Cannot synthesize at all | Reason printed, nothing written |
+
+### WRITTEN — libcst injection
+
+Verified tests are injected into the target test file using **libcst** — a lossless concrete syntax tree parser. This preserves your comments, blank lines, and indentation. The file is backed up before write and restored on failure.
+
+### SCAFFOLDED — stub files
+
+When a test can't pass all gates, Quell writes a stub so you don't lose the edge case:
 
 ```python
-try:
-    backup_source()
-    inject_violation()
-    run_pytest()
-finally:
-    restore_source()    # ALWAYS runs
-    cleanup_temp()      # ALWAYS runs
+# quell: scaffold — complete the assertions below and move to your test suite
+def test_quell_scaffold_pay_req_abc123():
+    """
+    Quell scaffold — gates passed: 2/5
+    Constraint: raises ValueError when amount <= 0
+    """
+    from payments import pay
+    # quell: complete assertion
+    # TODO: call pay() and assert the edge case behaviour
+    pass
 ```
 
-The source file is **always** restored, even if verification crashes or times out.
+The scaffold dir (`tests/scaffold/`) is auto-added to `.gitignore` by `quell init`. Move completed stubs to your main test suite.
 
-## Stage 4: Write
+### FLAGGED — with reasons
 
-Verified tests are injected into the target test file using **libcst** — a lossless concrete syntax tree parser.
+FLAGGED items always show a one-line reason:
 
-Unlike regex-based injection, libcst:
-- Preserves your existing comments, blank lines, and indentation
-- Validates the resulting source parses correctly before writing
-- Backs up the file before making any change
-- Restores on failure
-
-The final write sequence:
-
-1. Parse existing test file with libcst
-2. Parse new test function with libcst
-3. Append the new function node
-4. Validate the combined source
-5. Write to disk
-
-If step 4 or 5 fails, the backup is restored and Quell exits cleanly.
-
-## Diagnostic report
-
-After every `--fix` run, Quell writes `.quell/report.json` — a privacy-safe diagnostic file that records where the rule engine succeeded, where it failed, and which argument types it couldn't stub.
-
-```json
-{
-  "quell_version": "0.4.4",
-  "total_requirements": 79,
-  "written": 41,
-  "fails_on_correct": 15,
-  "doesnt_catch_violation": 0,
-  "skipped": 5,
-  "unknown_type_frequency": {},
-  "failure_reason_frequency": {
-    "test_logic_incorrect": 15
-  },
-  "_note": "This report contains no source code or full paths. Safe to share with the Quell maintainer to improve the rule engine."
-}
+```
+✗ FLAGGED  src/billing.py:142  depends on external API — no violation injectable
+✗ FLAGGED  src/user.py:87     guard checks self.attr — needs class instantiation
 ```
 
-**What IS recorded:** function names, constraint kinds, verification outcome, unknown type annotations, aggregate counts.
+## Production Readiness Score (PRS)
 
-**What is NOT recorded:** source code, function bodies, full file paths, or any data that could identify proprietary business logic.
+PRS is a 0–100 score computed after every `quell find` run:
 
-Share this file with the Quell maintainer to improve rule engine coverage — each `unknown_type_frequency` entry tells us exactly which type stubs to add next.
-
-## Audit log
-
-Every action Quell takes is appended to `.quell/audit.jsonl` as a structured JSON record:
-
-```json
-{
-  "timestamp": "2026-05-08T14:32:01Z",
-  "requirement_id": "req_abc123",
-  "action": "test_written",
-  "file_path": "tests/test_payments.py",
-  "test_function_name": "test_process_payment_must_raise_valueerror",
-  "verification_status": "VERIFIED"
-}
 ```
+PRS = (Σ confidence_of_WRITTEN_tests / (total_edge_cases × 100)) × 100
+```
+
+**Modifiers:**
+- **+5** if all FLAGGED items are documented with `# quell: flagged`
+- **-10** if any HIGH-confidence test is disabled with `@pytest.mark.skip`
+
+**Tiers:**
+
+| Score | Tier | Emoji |
+|-------|------|-------|
+| ≥80 | Production Ready | 🟢 |
+| ≥60 | Review Needed | 🟡 |
+| <60 | Needs Work | 🔴 |
+
+PRS is written to `quell-report.json` and shown by `quell score`. The GitHub Action posts it as a PR comment on every scan.
 
 ## Design invariants
 
-These invariants are enforced throughout the codebase and must never be broken:
+These invariants are enforced throughout the codebase:
 
-1. **`verifier.py`** — always restores source files in a `finally` block
-2. **`writer.py`** — always backs up before writing, always restores on failure
-3. **`writer.py`** — always validates CST parses correctly before writing to disk
-4. **No code is sent to any server** unless an LLM provider is configured
-5. **LLM is only called** for complex/unstructured specs — never for ones the rule engine handles
-6. **Verification runs in a subprocess** — never in-process
-7. **Every spec reader returns `[]` on any error** — never raises
+1. **Verifier** — always restores source files in a `finally` block
+2. **Writer** — always backs up before writing, always restores on failure
+3. **Writer** — always validates CST parses correctly before writing
+4. **No code leaves your machine** unless an LLM provider is explicitly configured
+5. **LLM is only called** when the rule engine returns `None` and `--use-llm` is set
+6. **Verification runs in a subprocess** — never in-process (module cache)
+7. **Every spec reader returns `[]` on error** — never raises

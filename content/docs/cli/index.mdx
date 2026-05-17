@@ -1,11 +1,11 @@
 ---
-title: CLI Overview
-description: All quell commands and global options.
+title: CLI Reference
+description: All quell commands and global options — v2.0.0.
 ---
 
 # CLI Reference
 
-Quell provides a single entry-point command `quell` with several subcommands.
+Quell provides a single entry-point command `quell` with several subcommands. The primary command is `quell find`.
 
 ## Global options
 
@@ -15,24 +15,42 @@ All commands accept these options:
 |--------|---------|-------------|
 | `--root` | `.` | Project root directory |
 | `--help` | — | Show help and exit |
+| `--version` | — | Print version and exit |
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
-| [`quell check`](/docs/cli/check) | Scan specs, find requirement gaps, optionally generate verified tests |
+| [`quell find`](/docs/cli/find) | **Primary.** Scan for untested edge cases, show three-bucket output |
+| [`quell score`](/docs/cli/score) | Show Production Readiness Score and optional SVG badge |
 | [`quell reproduce`](/docs/cli/reproduce) | Convert a bug description into a verified failing test |
-| [`quell prove`](/docs/cli/prove) | Show requirement coverage score for a file or function |
-| [`quell score`](/docs/cli/score) | Show project-wide Quell Score and optional SVG badge |
-| [`quell ci`](/docs/cli/ci) | CI mode: check requirements and exit 1 if below threshold |
+| [`quell ci`](/docs/cli/ci) | CI mode: exit 1 if PRS is below threshold |
 | [`quell init`](/docs/cli/init) | Add `[tool.quell]` to `pyproject.toml` |
+| [`quell install`](/docs/cli/auto) | Write GitHub Actions workflow (`--action`) |
+| [`quell auth`](/docs/cli/auto) | Manage LLM credentials (`set`, `status`) |
+| [`quell check`](/docs/cli/check) | Legacy scan command (still supported) |
+| [`quell prove`](/docs/cli/prove) | Show coverage score for a file or function |
+
+## Quick reference
+
+```bash
+quell find src/                   # scan for untested edge cases
+quell find src/ --fix             # also write WRITTEN tests
+quell find src/ --fix --auto      # skip confirmation (CI)
+quell find src/ --format github   # GitHub Actions annotations
+quell score                       # show PRS from last scan
+quell score --badge               # print SVG badge
+quell install --action            # write GitHub Actions workflow
+quell auth set --provider groq --key sk-...
+quell init                        # add [tool.quell] to pyproject.toml
+```
 
 ## Getting help
 
 ```bash
 quell --help
-quell check --help
-quell ci --help
+quell find --help
+quell score --help
 ```
 
 ## Shell completion

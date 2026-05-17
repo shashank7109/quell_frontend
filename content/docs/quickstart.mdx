@@ -1,6 +1,6 @@
 ---
 title: Quickstart
-description: Prove your first requirement in under 5 minutes.
+description: Find untested edge cases in your Python project in under 5 minutes.
 ---
 
 # Quickstart
@@ -30,12 +30,6 @@ def process_payment(request: PaymentRequest) -> dict:
     """
     Process a payment transaction.
 
-    Args:
-        request: Amount must be greater than 0. Currency must be one of: USD, EUR, GBP.
-
-    Returns:
-        dict with transaction_id, status, amount.
-
     Raises:
         ValueError: If amount is zero or negative.
     """
@@ -44,70 +38,101 @@ def process_payment(request: PaymentRequest) -> dict:
     return {"transaction_id": "txn_123", "status": "ok", "amount": request.amount}
 ```
 
-## 3. Scan for requirement gaps
+## 3. Find untested edge cases
 
 ```bash
-quell check payments.py
+quell find src/
 ```
 
-Quell reads the docstring and the Pydantic model, extracts every requirement, and shows which ones have no test:
+Quell reads docstrings and Pydantic models, extracts every edge case, and shows three buckets:
 
 ```
-Requirements — payments.py
-Function              Kind         Description                        Covered
-process_payment       MUST_RAISE   ValueError: If amount is zero...   NO
-process_payment       MUST_RETURN  dict with transaction_id, statu... NO
-process_payment       BOUNDARY     Amount must be greater than 0      NO
-PaymentRequest        ENUM_VALID   currency: USD, EUR, GBP            NO
-PaymentRequest        BOUNDARY     amount: gt=0                       NO
+Quell Scan — reading edge cases in 1 file(s)
 
-Score: 0% (0/5 covered)
-5 gap(s) found. Run with --fix to generate tests.
+✓ WRITTEN  (2)    Tests written to disk. Passed all 5 gates.
+                  → tests/test_payments.py   confidence: 91%  [HIGH]
+
+⚠ SCAFFOLDED (1)  Stub written. Complete the assertion.
+                  → tests/scaffold/test_payments.py
+
+✗ FLAGGED  (1)    Cannot auto-test. Here's why.
+                  → src/payments.py:4   ENUM_VALID depends on external validation
+
+─────────────────────────────────────────────────────
+PRS  68/100  🟡 Review Needed
+Edge case coverage: 50%  |  Avg confidence: 91%
 ```
 
-## 4. Generate and write verified tests
+## 4. Write the tests
+
+Add `--fix` to write WRITTEN tests to disk:
 
 ```bash
-quell check payments.py --fix
+quell find src/ --fix
 ```
 
-For each gap, Quell generates a candidate test, proves it passes on correct code AND fails on violated code, then writes only the verified tests.
-
-## 5. Reproduce a bug from a description
+Add `--auto` to skip the confirmation prompt (use in CI):
 
 ```bash
-quell reproduce "payment accepts zero amount silently"
+quell find src/ --fix --auto
 ```
 
-Quell converts the plain-English bug description into a failing test that you can use to drive a fix.
+## 5. Complete a scaffold stub
 
-## 6. Check coverage for a specific file
+Open the stub in `tests/scaffold/test_payments.py`, fill in the assertion, and move it to your main test suite:
+
+```python
+# Before (generated stub)
+def test_quell_scaffold_process_payment_req_abc123():
+    from payments import process_payment
+    # quell: complete assertion
+    # TODO: call process_payment() and assert the edge case behaviour
+    pass
+
+# After (your assertion)
+def test_process_payment_rejects_zero_amount():
+    with pytest.raises(ValueError):
+        process_payment(PaymentRequest(amount=0, currency="USD"))
+```
+
+## 6. Check your Production Readiness Score
 
 ```bash
-quell prove payments.py
+quell score
 ```
 
 ```
-80% of requirements proven for payments.py
+PRS  84/100  🟢 Production Ready
+
+WRITTEN      8 tests    avg confidence: 91%
+SCAFFOLDED   1 stub
+FLAGGED      0 items
+
+quell-report.json updated.
 ```
 
-## 7. Project-wide score
+## 7. Set up CI
+
+Install the GitHub Action in one command:
 
 ```bash
-quell score --badge
+quell install --action
 ```
 
-```
-File          Requirements   Covered   Score   Grade
-payments.py            5         4     80%       B
-auth.py                8         7     87%       A
+This writes `.github/workflows/quelltest.yml`. On every PR it runs `quell find --format github`, posts inline annotations on untested lines, and comments a PRS summary.
 
-Project Score: 84%
-Badge written to .quell/badge.svg
+## 8. Optional — LLM fallback for harder cases
+
+About 75% of edge cases are handled with no network calls. For the rest, enable Groq (fast, free tier):
+
+```bash
+quell auth set --provider groq --key gsk-...
+quell find src/ --fix --use-llm
 ```
 
 ## Next steps
 
-- Set up [CI/CD integration](/docs/guides/ci-integration) to run Quell on every pull request
-- Configure [LLM providers](/docs/configuration/llm-providers) for complex unstructured specs
-- Use the [Python SDK](/docs/sdk) to integrate Quell into your own tooling
+- [How It Works](/docs/how-it-works) — understand the 5-gate pipeline and PRS
+- [CI/CD Guide](/docs/guides/ci-cd) — integrate with GitHub Actions
+- [Configuration](/docs/configuration/pyproject) — all pyproject.toml options
+- [Python SDK](/docs/sdk/overview) — use Quell programmatically

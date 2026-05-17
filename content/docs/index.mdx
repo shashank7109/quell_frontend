@@ -1,59 +1,70 @@
 ---
 title: Introduction
-description: Quell reads your existing specs — docstrings, Pydantic models, bug reports — and proves that your tests enforce them.
+description: Quell finds untested edge cases in your Python code before production does.
 ---
 
-# Quell Documentation
+# Quell Documentation — v2.0.0
 
-**Quell** reads specifications that already exist in your codebase — docstrings, Pydantic models, bug reports — extracts every testable requirement, checks which ones have no test, generates a verified test for each gap, then writes it to disk.
+**Untested edge cases will bite you in production. Quell finds them before they do.**
+
+Quell scans your docstrings, Pydantic models, and PySpark schemas, extracts every testable edge case, runs each candidate through a 5-gate pipeline, and sorts results into three buckets: **WRITTEN** (verified tests on disk), **SCAFFOLDED** (stubs for you to complete), **FLAGGED** (explained gaps). Every test that Quell writes has passed 5 gates.
 
 <Callout type="tip">
-  **New here?** Jump straight to the [Quickstart](/docs/quickstart) to prove your first requirement in under 5 minutes.
+  **New here?** Jump to the [Quickstart](/docs/quickstart) to scan your first project in under 5 minutes.
 </Callout>
 
-## What problem does Quell solve?
+## The problem Quell solves
 
 Other test generation tools read your implementation and generate tests for what your code *does*. If your code has a bug, they generate tests that bless it.
 
-Quell reads your **specification** — the docstring that says "must raise ValueError", the Pydantic model that says `Field(gt=0)` — and generates a test that proves the requirement. It catches bugs instead of blessing them.
+Quell reads your **specification** — the docstring that says "must raise ValueError", the Pydantic model that says `Field(gt=0)` — and generates a test that proves the requirement is enforced. It catches bugs instead of blessing them.
 
 <CardGroup>
-  <Card title="Spec-first generation" icon="*">
-    Quell reads docstrings, Pydantic models, PySpark schemas, and bug descriptions. It extracts requirements, not implementation.
+  <Card title="5-gate pipeline" icon="*">
+    Every candidate test passes AST validity, originality, security, correct-code, and violated-code checks. Only tests that clear all 5 are written.
   </Card>
-  <Card title="Zero false positives" icon="+">
-    Every generated test is verified in two phases: passes on correct code AND fails on violated code. Both are required.
+  <Card title="Three-bucket output" icon="+">
+    WRITTEN (shipped), SCAFFOLDED (stubs for you to finish), FLAGGED (with a reason). Nothing is silently dropped.
   </Card>
-  <Card title="Formatting preserved" icon="#">
-    Tests are injected using libcst — a lossless concrete syntax tree. Your comments and spacing are untouched.
+  <Card title="Production Readiness Score" icon="#">
+    A 0–100 PRS across your WRITTEN tests, posted as a PR comment on every scan. Green ≥80 / Yellow ≥60 / Red &lt;60.
   </Card>
   <Card title="Privacy first" icon="@">
-    Use `--no-llm` to guarantee no network calls. LLM is only called for complex unstructured specs when configured — most requirements are handled by the rule engine.
+    Rule engine handles ~75% of edge cases with zero network calls. LLM fallback is opt-in. No code leaves your machine unless you configure a provider.
   </Card>
-  <Card title="PR integration" icon="!">
-    `quell pr <N>` fetches a PR diff, checks coverage on changed files, and posts a formatted comment with a score emoji and gap table. One command: `quell install --pr`.
+  <Card title="GitHub Action" icon="!">
+    `quell install --action` writes a full workflow in one command. Posts PRS tier and inline annotations on every PR.
   </Card>
-  <Card title="Diagnostic report" icon="~">
-    Every `--fix` run writes `.quell/report.json` — a privacy-safe file recording where the rule engine succeeded and failed. No source code included. Safe to share.
+  <Card title="Scaffold stubs" icon="~">
+    When a test can't pass all gates, Quell writes a stub to `tests/scaffold/` with a `# quell: complete assertion` marker. Nothing is silently dropped.
   </Card>
 </CardGroup>
 
 ## How it works
 
 <Steps>
-  <Step title="Read specs">
-    Quell scans your docstrings (Raises:, Args:, Returns: blocks), Pydantic models (Field validators, Literal types), and bug descriptions. Each spec becomes a typed Requirement.
+  <Step title="Find edge cases">
+    `quell find src/` scans docstrings, Pydantic models, PySpark schemas, and guard clauses. Each edge case becomes a typed Requirement.
   </Step>
-  <Step title="Find gaps">
+  <Step title="Check coverage">
     An AST-based coverage checker scans your test files and marks each Requirement as covered or uncovered — no test execution required.
   </Step>
-  <Step title="Verify">
-    For each gap, Quell generates a candidate test, then proves it in two phases: it must PASS on the original code and FAIL on code that violates the requirement.
+  <Step title="Generate and gate">
+    For each gap, the rule engine generates a candidate test. It passes through 5 gates: AST valid, original, safe, passes on correct code, fails on violated code.
   </Step>
-  <Step title="Write">
-    Verified tests are injected into your test file using libcst. The file is backed up first. The write is only committed if the injected source parses correctly.
+  <Step title="Route to bucket">
+    Gate 1–5 survivors are WRITTEN to disk. Earlier failures become SCAFFOLDED stubs. Requirements that can't be synthesized at all are FLAGGED with a reason.
   </Step>
 </Steps>
+
+## Quick start
+
+```bash
+pip install quelltest
+quell find src/               # see three-bucket output
+quell find src/ --fix         # write WRITTEN tests
+quell install --action        # set up GitHub Actions
+```
 
 ## Supported spec sources
 
@@ -64,11 +75,5 @@ Quell reads your **specification** — the docstring that says "must raise Value
 | Type annotations | `Literal["active", "inactive"]` function arguments |
 | Bug descriptions | `"payment accepts zero amount silently"` |
 | PySpark schemas | `StructType([StructField("amount", DoubleType(), nullable=False)])` |
-
-## Quick install
-
-```bash
-pip install quelltest
-```
 
 Requires Python 3.11+. The CLI command is `quell`. See [Installation](/docs/installation) for virtual environment setup.

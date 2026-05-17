@@ -1,6 +1,6 @@
 ---
 title: pyproject.toml Configuration
-description: All Quell configuration options via the [tool.quell] section.
+description: All Quell v2.0.0 configuration options via the [tool.quell] section.
 ---
 
 # pyproject.toml Configuration
@@ -13,71 +13,94 @@ Quell reads configuration from the `[tool.quell]` section of your `pyproject.tom
 quell init
 ```
 
-Adds to your `pyproject.toml`:
+Adds to your `pyproject.toml` (v2.0.0 defaults):
 
 ```toml
 [tool.quell]
-llm_provider = "anthropic"
-llm_model = "claude-sonnet-4-5"
+llm_provider = "groq"
+llm_model = "llama-3.3-70b-versatile"
+use_llm = false
 max_verification_attempts = 3
 verification_timeout_seconds = 30
 auto_write = false
+prs_threshold = 60
+scaffold_dir = "tests/scaffold"
 enable_docstring = true
 enable_types = true
 enable_mutations = false
-score_threshold = 0.0
+enable_pyspark = false
 ```
+
+Also adds `tests/scaffold/` to `.gitignore` automatically.
 
 ## Full reference
 
 ```toml
 [tool.quell]
 # LLM settings
-llm_provider = "anthropic"           # "anthropic" | "openai" | "ollama"
-llm_model = "claude-sonnet-4-6"      # model name for the provider
+llm_provider = "groq"                    # "groq" | "anthropic" | "openai" | "ollama" | "none"
+llm_model = "llama-3.3-70b-versatile"   # model name for the provider
+use_llm = false                          # enable LLM fallback (opt-in)
 ollama_base_url = "http://localhost:11434"
 
 # Verification
-max_verification_attempts = 3         # retry count for flaky tests
-verification_timeout_seconds = 30     # subprocess timeout per test run
+max_verification_attempts = 3            # retry count for flaky tests
+verification_timeout_seconds = 30        # subprocess timeout per test run
 
 # Writing behaviour
-auto_write = false                    # skip confirmation prompt if true
+auto_write = false                       # skip confirmation prompt if true
+
+# PRS and CI
+prs_threshold = 60                       # minimum PRS for quell ci
+
+# Scaffold output
+scaffold_dir = "tests/scaffold"          # where SCAFFOLDED stubs are written
 
 # Spec sources
-enable_docstring = true               # read docstrings for requirements
-enable_types = true                   # read Pydantic models and type annotations
-enable_mutations = false              # read mutmut/Stryker results (optional)
-
-# CI gate
-score_threshold = 0.0                 # minimum score for quell ci
+enable_docstring = true                  # read docstrings for edge cases
+enable_types = true                      # read Pydantic models and type annotations
+enable_mutations = false                 # read mutmut/Stryker results (optional)
+enable_pyspark = false                   # read PySpark StructType schemas
 
 # Paths
 audit_log_path = ".quell/audit.jsonl"
 backup_dir = ".quell/backups"
 ```
 
+## Migrating from v1.0.0
+
+| v1.0.0 key | v2.0.0 equivalent | Notes |
+|------------|-------------------|-------|
+| `llm_provider = "anthropic"` | `llm_provider = "groq"` | Groq is now the default |
+| `score_threshold = 0.0` | `prs_threshold = 60` | PRS replaces the old score |
+| _(no equivalent)_ | `scaffold_dir = "tests/scaffold"` | New in v2.0.0 |
+| _(no equivalent)_ | `use_llm = false` | LLM is now opt-in explicitly |
+
 ## Option descriptions
 
 ### `llm_provider`
 
-Which LLM to use for complex or unstructured specs (e.g., bug descriptions). Quell never calls the LLM for specs it can parse directly (docstrings, Pydantic models).
+Which LLM to use for complex or unstructured specs. Quell never calls the LLM for edge cases it can parse directly.
 
 | Value | Requires |
 |-------|---------|
-| `"anthropic"` | `ANTHROPIC_API_KEY` env var |
-| `"openai"` | `OPENAI_API_KEY` env var |
+| `"groq"` | `GROQ_API_KEY` or `quell auth set --provider groq` |
+| `"anthropic"` | `ANTHROPIC_API_KEY` or `quell auth set --provider anthropic` |
+| `"openai"` | `OPENAI_API_KEY` |
 | `"ollama"` | Ollama running locally |
+| `"none"` | No LLM calls — rule engine only |
 
-### `llm_model`
+### `use_llm`
 
-Model name passed to the provider. Defaults:
+Whether to enable the LLM fallback. Default `false` — rule engine only. Set to `true` and configure `llm_provider` to handle the ~25% of edge cases the rule engine can't handle.
 
-| Provider | Default model |
-|----------|---------------|
-| `anthropic` | `claude-sonnet-4-5` |
-| `openai` | `gpt-4o` |
-| `ollama` | `codellama` |
+### `prs_threshold`
+
+Minimum acceptable Production Readiness Score for `quell ci`. Default 60 (yellow tier). Increase to 80 for strict "production ready" gating.
+
+### `scaffold_dir`
+
+Where SCAFFOLDED stubs are written. Default `tests/scaffold`. `quell init` automatically adds this path to `.gitignore`.
 
 ### `max_verification_attempts`
 
@@ -85,19 +108,15 @@ How many times to retry verification if the test result is non-deterministic. Us
 
 ### `verification_timeout_seconds`
 
-Maximum time (in seconds) for a single pytest subprocess run. If your test suite has heavy fixtures, increase this.
+Maximum time (in seconds) for a single pytest subprocess run. Increase this if your test suite has heavy fixtures.
 
 ### `auto_write`
 
-If `true`, Quell writes verified tests without asking for confirmation. Useful for automated scripts and CI.
+If `true`, Quell writes verified tests without asking for confirmation. Useful for CI pipelines.
 
-### `enable_docstring` / `enable_types`
+### `enable_docstring` / `enable_types` / `enable_pyspark`
 
-Which spec readers to activate. Both are `true` by default. Set `enable_types = false` if your project doesn't use Pydantic.
-
-### `score_threshold`
-
-Minimum acceptable score for `quell ci`. Overridden by `--threshold` on the CLI.
+Which spec readers to activate. `enable_pyspark = false` by default — set to `true` if your project uses PySpark schemas (requires `pip install quelltest[pyspark]`).
 
 ## Monorepo setup
 
@@ -117,6 +136,6 @@ my-monorepo/
 Run with:
 
 ```bash
-quell ci src/ --root packages/payments
-quell ci src/ --root packages/auth
+quell find packages/payments/src/ --root packages/payments
+quell find packages/auth/src/ --root packages/auth
 ```
