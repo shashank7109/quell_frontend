@@ -64,7 +64,7 @@ const FAQS = [
   },
   {
     q: "How is Quelltest different from coverage.py or pytest-cov?",
-    a: "Coverage tools measure which lines of code were executed during tests — not whether the tests actually prove anything meaningful. Quelltest measures requirement coverage: how many of the testable claims in your docstrings, Pydantic models, and schemas have a verified test. A line can be covered while the test catches nothing.",
+    a: "Coverage tools measure which lines of code were executed during tests — not whether the tests actually prove anything meaningful. Quell measures edge case coverage: how many of the testable claims in your docstrings, Pydantic models, and schemas have a verified test that actually catches violations. A line can be covered while the test catches nothing.",
   },
   {
     q: "What does 'verified' mean exactly?",
@@ -84,7 +84,7 @@ const FAQS = [
   },
   {
     q: "Does Quelltest work with FastAPI or async code?",
-    a: "quell scan detects guard clauses in all Python functions including FastAPI route handlers. Async functions are currently scanned for guard patterns but test generation stubs them as synchronous — a known limitation for complex async dependencies. Support for full async test generation is on the roadmap.",
+    a: "quell find detects guard clauses in all Python functions including FastAPI route handlers. Async functions are currently scanned for guard patterns but test generation stubs them as synchronous — a known limitation for complex async dependencies. Support for full async test generation is on the roadmap.",
   },
   {
     q: "What is the GitHub App and how is it different from the GitHub Action?",
@@ -92,7 +92,7 @@ const FAQS = [
   },
   {
     q: "What is the difference between Quell and Quelltest?",
-    a: "They are the same product. The tool was originally released as Quell and is now rebranded as Quelltest. The PyPI package (pip install quelltest), the CLI command (quell), and all functionality remain identical.",
+    a: "Quell is the product name and brand. quelltest is the PyPI package name — so you run `pip install quelltest` but the CLI command is `quell`. Both names refer to the same tool.",
   },
 ];
 
@@ -133,23 +133,22 @@ export default function Home() {
             <div className="py-6">
               <div className="inline-flex items-center gap-2 text-xs text-[#777] border border-[#1a1a1a] rounded-full px-3.5 py-1.5 mb-8 bg-[#0a0a0a]">
                 <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                quelltest 1.0.0 — QuellGraph · container engine · confidence scorer
+                Quell v2.0.0 — quell find · three-bucket output · PRS
               </div>
 
               <h1 className="text-4xl md:text-5xl font-bold tracking-tight leading-[1.1] mb-5">
-                Your specs say what
+                Untested edge cases
                 <br />
-                <span className="text-[#555]">your code should do.</span>
+                <span className="text-[#555]">will bite you in production.</span>
                 <br />
-                Quelltest proves it.
+                Quell finds them first.
               </h1>
 
               <p className="text-[#888] text-base leading-relaxed mb-8 max-w-[430px]">
-                Quelltest reads your Python docstrings, Pydantic models, and PySpark schemas —
-                extracts every testable requirement — generates verified pytest tests that
-                actually prove each one. Two-phase verification before anything touches disk.
-                Now with infrastructure-aware testing: auto-start ephemeral containers, graph-based
-                infra detection, and per-test confidence scores. No LLM key required.
+                Run <code className="text-[#aaa] font-mono text-sm">quell find src/</code> and get three buckets back:
+                tests written to disk (WRITTEN), stubs for you to finish (SCAFFOLDED),
+                and gaps with a one-line reason why (FLAGGED). Every WRITTEN test passed
+                5 gates — including proving it actually catches the bug. No LLM key required.
               </p>
 
               <div className="flex flex-col sm:flex-row gap-3 mb-10">
@@ -326,39 +325,44 @@ export default function Home() {
                 },
                 {
                   n: "02",
-                  title: "Find gaps — no test execution needed",
-                  body: "An AST-based coverage checker scans your test files and marks each requirement as covered or uncovered. Static, fast, no pytest run required at scan time.",
+                  title: "5-gate pipeline — only proven tests advance",
+                  body: "Each candidate test passes 5 gates: AST validity, originality, security, passes on correct code, and fails on violated code. Tests that clear all 5 become WRITTEN. Earlier failures become SCAFFOLDED stubs so nothing is silently dropped.",
                   snippet: [
-                    { t: "muted", v: "  Score: 0% (0/5 covered)" },
+                    { t: "muted", v: "  Gate 1  AST valid ✓" },
                     { t: "nl" },
-                    { t: "muted", v: "  5 gap(s) found." },
+                    { t: "muted", v: "  Gate 2  original  ✓" },
                     { t: "nl" },
+                    { t: "muted", v: "  Gate 3  secure    ✓" },
                     { t: "nl" },
-                    { t: "muted", v: "  Run --fix to generate tests." },
+                    { t: "green", v: "  Gate 4  passes on correct code ✓" },
+                    { t: "nl" },
+                    { t: "green", v: "  Gate 5  fails on violated code ✓" },
                   ],
                 },
                 {
                   n: "03",
-                  title: "Verify before writing — the moat",
-                  body: "Every generated test must PASS on correct code AND FAIL on violated code. Quelltest injects targeted violations per constraint kind — comments out the raise, weakens the Field bound, flips nullable — then runs both phases in subprocess isolation.",
+                  title: "Three buckets — nothing dropped silently",
+                  body: "WRITTEN tests are written to disk via libcst. SCAFFOLDED stubs go to tests/scaffold/ with a # quell: complete assertion marker. FLAGGED items show a one-line reason. Every edge case is accounted for.",
                   snippet: [
-                    { t: "green", v: "  ✓ phase 1: passes on original code" },
+                    { t: "green", v: "  ✓ WRITTEN     (8)  tests/test_payments.py" },
                     { t: "nl" },
-                    { t: "green", v: "  ✓ phase 2: fails on violated code" },
+                    { t: "muted", v: "  ⚠ SCAFFOLDED  (3)  tests/scaffold/" },
                     { t: "nl" },
-                    { t: "muted", v: "  → proven. safe to write." },
+                    { t: "muted", v: "  ✗ FLAGGED     (2)  external API" },
+                    { t: "nl" },
+                    { t: "green", v: "  PRS  84/100  🟢 Production Ready" },
                   ],
                 },
                 {
                   n: "04",
-                  title: "Write with libcst. Always restore.",
-                  body: "Tests are injected using libcst — a lossless concrete syntax tree. Comments, spacing, and formatting are preserved. Source is backed up first and always restored in a finally block, no matter what.",
+                  title: "PRS — one number for your whole project.",
+                  body: "Every scan writes quell-report.json with a Production Readiness Score: a 0–100 number across your WRITTEN tests and their confidence scores. The GitHub Action posts it as a PR comment with a tier emoji on every scan.",
                   snippet: [
-                    { t: "muted", v: "  backed up  src/ → .quell/backups/" },
+                    { t: "muted", v: "  quell-report.json written" },
                     { t: "nl" },
-                    { t: "green", v: "  ✓ tests/test_payments.py  +6 tests" },
+                    { t: "green", v: "  PRS  84/100  🟢 Production Ready" },
                     { t: "nl" },
-                    { t: "muted", v: "  report: .quell/report.json" },
+                    { t: "muted", v: "  written: 8  scaffolded: 3  flagged: 2" },
                     { t: "nl" },
                     { t: "muted", v: "  Your code never left your machine." },
                   ],
@@ -443,14 +447,6 @@ export default function Home() {
             <div className="grid md:grid-cols-2 gap-3">
               {[
                 {
-                  cmd: "quell scan src/",
-                  desc: "Find untested guard clauses (if/raise patterns). No docstrings needed.",
-                },
-                {
-                  cmd: "quell scan src/ --fix",
-                  desc: "Generate and verify failing tests for every untested guard clause.",
-                },
-                {
                   cmd: "quell find src/",
                   desc: "Find all untested edge cases — shows WRITTEN / SCAFFOLDED / FLAGGED buckets.",
                 },
@@ -463,8 +459,12 @@ export default function Home() {
                   desc: "Skip confirmation prompts — use in CI pipelines.",
                 },
                 {
+                  cmd: "quell score",
+                  desc: "Show Production Readiness Score for your project.",
+                },
+                {
                   cmd: "quell score --badge",
-                  desc: "Print Production Readiness Score and SVG badge.",
+                  desc: "Print Production Readiness Score and SVG badge for your README.",
                 },
                 {
                   cmd: "quell install --action",
@@ -489,21 +489,21 @@ export default function Home() {
                 Every run generates a diagnostic report.
               </h2>
               <p className="text-[#888] text-sm leading-relaxed">
-                After every <code className="text-[#aaa] font-mono text-xs">--fix</code> run, Quelltest writes{" "}
-                <code className="text-[#aaa] font-mono text-xs">.quell/report.json</code> — a
-                privacy-safe file recording where the rule engine succeeded, what it skipped,
-                and which argument types it couldn&apos;t stub. No source code. Safe to share.
+                After every <code className="text-[#aaa] font-mono text-xs">quell find</code> run, Quell writes{" "}
+                <code className="text-[#aaa] font-mono text-xs">quell-report.json</code> to your project root —
+                a privacy-safe file with your PRS, bucket counts, and per-test confidence. No source code.
+                Read by <code className="text-[#aaa] font-mono text-xs">quell score</code> and the GitHub Action.
               </p>
             </div>
             <div className="bg-[#080808] border border-[#111] rounded-xl px-5 py-4 font-mono text-xs leading-[1.9]">
               <p className="text-[#333]">{"{"}</p>
-              <p className="pl-4"><span className="text-[#555]">&quot;quell_version&quot;</span><span className="text-[#333]">: </span><span className="text-[#888]">&quot;1.0.0&quot;</span><span className="text-[#333]">,</span></p>
-              <p className="pl-4"><span className="text-[#555]">&quot;target&quot;</span><span className="text-[#333]">: </span><span className="text-[#888]">&quot;quell&quot;</span><span className="text-[#333]">,</span></p>
-              <p className="pl-4"><span className="text-[#555]">&quot;total_requirements&quot;</span><span className="text-[#333]">: </span><span className="text-[#888]">58</span><span className="text-[#333]">,</span></p>
-              <p className="pl-4"><span className="text-[#555]">&quot;verified_and_written&quot;</span><span className="text-[#333]">: </span><span className="text-green-600">12</span><span className="text-[#333]">,</span></p>
-              <p className="pl-4"><span className="text-[#555]">&quot;rejected_fails_on_correct&quot;</span><span className="text-[#333]">: </span><span className="text-yellow-700">7</span><span className="text-[#333]">,</span></p>
-              <p className="pl-4"><span className="text-[#555]">&quot;rejected_no_catch&quot;</span><span className="text-[#333]">: </span><span className="text-yellow-700">8</span><span className="text-[#333]">,</span></p>
-              <p className="pl-4"><span className="text-[#555]">&quot;spec_sources&quot;</span><span className="text-[#333]">: [</span><span className="text-[#888]">&quot;docstring&quot;, &quot;pydantic&quot;, &quot;code_guard&quot;</span><span className="text-[#333]">],</span></p>
+              <p className="pl-4"><span className="text-[#555]">&quot;quell_version&quot;</span><span className="text-[#333]">: </span><span className="text-[#888]">&quot;2.0.0&quot;</span><span className="text-[#333]">,</span></p>
+              <p className="pl-4"><span className="text-[#555]">&quot;prs_score&quot;</span><span className="text-[#333]">: </span><span className="text-green-600">84</span><span className="text-[#333]">,</span></p>
+              <p className="pl-4"><span className="text-[#555]">&quot;written&quot;</span><span className="text-[#333]">: </span><span className="text-green-600">8</span><span className="text-[#333]">,</span></p>
+              <p className="pl-4"><span className="text-[#555]">&quot;scaffolded&quot;</span><span className="text-[#333]">: </span><span className="text-yellow-700">3</span><span className="text-[#333]">,</span></p>
+              <p className="pl-4"><span className="text-[#555]">&quot;flagged&quot;</span><span className="text-[#333]">: </span><span className="text-yellow-700">2</span><span className="text-[#333]">,</span></p>
+              <p className="pl-4"><span className="text-[#555]">&quot;avg_confidence&quot;</span><span className="text-[#333]">: </span><span className="text-[#888]">91</span><span className="text-[#333]">,</span></p>
+              <p className="pl-4"><span className="text-[#555]">&quot;gaps_found&quot;</span><span className="text-[#333]">: </span><span className="text-[#888]">13</span><span className="text-[#333]">,</span></p>
               <p className="pl-4 text-[#333]">&quot;_note&quot;: &quot;No source code. Safe to share.&quot;</p>
               <p className="text-[#333]">{"}"}</p>
             </div>
@@ -519,9 +519,9 @@ export default function Home() {
                 Every pull request reviewed automatically.
               </h2>
               <p className="text-[#888] text-sm mt-3 max-w-lg leading-relaxed">
-                Quelltest scans every changed Python file for untested guard clauses —
-                if/raise patterns, try/except/raise, assert — and posts inline diff annotations
-                and a PR comment. No docstrings needed. Purely AST-based.
+                Quell scans every changed Python file for untested edge cases, runs them through
+                the 5-gate pipeline, and posts a PRS comment with a tier emoji (🟢/🟡/🔴) and
+                inline annotations. One command to set up: <code className="text-[#aaa] font-mono text-xs">quell install --action</code>.
               </p>
             </div>
 
@@ -542,8 +542,7 @@ export default function Home() {
                 </div>
                 <div className="p-5">
                   <p className="text-[#888] text-xs leading-relaxed mb-4">
-                    Add to any repo in under a minute. The action runs on every PR, emits
-                    inline diff warnings, and posts an idempotent summary comment.
+                    Add to any repo in under a minute. Runs <code className="text-[#aaa] font-mono">quell find --format github</code> on every PR, posts inline annotations and a PRS tier comment (🟢/🟡/🔴). Idempotent — updates the same comment on each push.
                   </p>
                   <div className="bg-[#060606] border border-[#111] rounded-lg px-4 py-3 font-mono text-[11px] text-[#444] leading-[1.8] mb-4">
                     <p className="text-[#2a2a2a]"># generated by: quell install --action</p>
@@ -553,9 +552,9 @@ export default function Home() {
                     <p className="pl-4">prs-threshold: <span className="text-[#888]">&apos;60&apos;</span></p>
                   </div>
                   <div className="text-[#555] text-[11px] mb-4 space-y-1">
-                    <p className="flex items-center gap-2"><span className="text-green-700">✓</span> Inline diff annotations per guard clause</p>
-                    <p className="flex items-center gap-2"><span className="text-green-700">✓</span> PR comment with gap table</p>
-                    <p className="flex items-center gap-2"><span className="text-green-700">✓</span> Optional merge block with fail-on-gaps</p>
+                    <p className="flex items-center gap-2"><span className="text-green-700">✓</span> Inline diff annotations per untested edge case</p>
+                    <p className="flex items-center gap-2"><span className="text-green-700">✓</span> PRS comment with tier emoji on every PR</p>
+                    <p className="flex items-center gap-2"><span className="text-green-700">✓</span> Gate CI on PRS threshold (prs-threshold: 80)</p>
                   </div>
                   <Link href="/docs/guides/github-actions" className="text-xs text-[#0070f3] hover:text-[#60a5fa] transition-colors">
                     Setup guide →
@@ -608,29 +607,29 @@ export default function Home() {
                 <span className="ml-auto text-[10px] text-[#2a2a2a] border border-[#1a1a1a] rounded px-2 py-0.5">markdown</span>
               </div>
               <div className="bg-[#060606] px-6 py-5 font-mono text-xs text-[#444] leading-[1.9]">
-                <p><span className="text-yellow-700">🟡</span> <span className="text-[#666] font-semibold">Quell — Guard Clause Scan</span></p>
-                <p className="mt-2"><span className="text-[#777]">3 untested guard clauses found</span> <span className="text-[#444]">— 40% covered (2/5)</span></p>
+                <p><span className="text-green-700">🟢</span> <span className="text-[#666] font-semibold">Quell Production Readiness Score: 84/100</span></p>
                 <div className="mt-3 border border-[#111] rounded overflow-hidden">
-                  <div className="grid grid-cols-4 gap-0 border-b border-[#111] px-3 py-1.5 text-[#2a2a2a]">
-                    <span>File</span><span>Function</span><span className="col-span-2">Guard</span>
+                  <div className="grid grid-cols-2 gap-0 border-b border-[#111] px-3 py-1.5 text-[#2a2a2a]">
+                    <span>Metric</span><span>Value</span>
                   </div>
-                  <div className="grid grid-cols-4 gap-0 px-3 py-1.5 border-b border-[#111]">
-                    <span className="text-[#555]">payments.py:32</span>
-                    <span className="text-[#444]">process_payment</span>
-                    <span className="col-span-2 text-[#333]">if amount &lt;= 0:</span>
+                  <div className="grid grid-cols-2 gap-0 px-3 py-1.5 border-b border-[#111]">
+                    <span className="text-[#555]">WRITTEN tests</span>
+                    <span className="text-green-700">8</span>
                   </div>
-                  <div className="grid grid-cols-4 gap-0 px-3 py-1.5 border-b border-[#111]">
-                    <span className="text-[#555]">sessions.py:18</span>
-                    <span className="text-[#444]">create_session</span>
-                    <span className="col-span-2 text-[#333]">if not user:</span>
+                  <div className="grid grid-cols-2 gap-0 px-3 py-1.5 border-b border-[#111]">
+                    <span className="text-[#555]">SCAFFOLDED stubs</span>
+                    <span className="text-yellow-700">3</span>
                   </div>
-                  <div className="grid grid-cols-4 gap-0 px-3 py-1.5">
-                    <span className="text-[#555]">auth.py:44</span>
-                    <span className="text-[#444]">require_auth</span>
-                    <span className="col-span-2 text-[#333]">if not is_authenticated:</span>
+                  <div className="grid grid-cols-2 gap-0 px-3 py-1.5 border-b border-[#111]">
+                    <span className="text-[#555]">FLAGGED</span>
+                    <span className="text-[#444]">2</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-0 px-3 py-1.5">
+                    <span className="text-[#555]">PRS</span>
+                    <span className="text-green-600">84/100</span>
                   </div>
                 </div>
-                <p className="mt-3 text-[#444]">Fix locally: <span className="text-[#777]">quell scan . --fix</span></p>
+                <p className="mt-3 text-[#333] text-[10px]">Generated by Quell — edge case finder</p>
               </div>
             </div>
 
@@ -696,7 +695,6 @@ export default function Home() {
               <Image src="/quell_icon.png" alt="Quelltest" width={16} height={16} className="opacity-40" />
               <span className="text-[#555] text-sm">© 2026 Quelltest. MIT License.</span>
             </div>
-            <span className="text-[#333] text-xs pl-6">Formerly Quell.</span>
           </div>
           <nav aria-label="Footer navigation">
             <div className="flex items-center gap-6 text-sm text-[#666]">
