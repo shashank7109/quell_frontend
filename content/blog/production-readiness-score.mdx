@@ -1,0 +1,134 @@
+---
+title: "Your Test Coverage Is Lying to You"
+description: "100% line coverage with zero edge case validation. It's more common than you think. Here's what the Production Readiness Score measures instead — and why it's the number that actually correlates with what breaks in production."
+date: "2026-05-16"
+category: "Article"
+tags: ["python testing", "test coverage", "production readiness", "edge cases", "pytest", "ci cd", "quelltest", "software quality"]
+author: "Shashank Bindal"
+authorUrl: "https://shashankbindal.me"
+---
+
+# Your Test Coverage Is Lying to You
+
+Here's a thing that happens all the time on professional software teams:
+
+1. The PR is submitted.
+2. CI runs. Coverage: **94%**. All tests green. ✅
+3. The PR is merged.
+4. Three days later, production is down because `process_payment(0)` doesn't raise and a customer sent a zero-dollar charge through.
+5. Someone checks. The coverage report showed `process_payment` as covered. A test did call it — with `amount=100.0`. The guard clause at `if amount <= 0: raise ValueError` was never executed.
+
+The function was "covered." The requirement was not tested. These are different things and most teams treat them as the same.
+
+## What coverage.py actually measures
+
+Coverage.py measures **line execution**. A line is covered if a test caused it to execute during a run. That's it. That's the entire metric.
+
+It tells you nothing about:
+
+- Whether the assertion verified the right thing
+- Whether removing the guard clause would make the test fail
+- Whether the edge condition was ever exercised
+- Whether the test that "covers" the function would catch a real bug
+
+A test that calls `process_payment(100.0)` and asserts `result["status"] == "ok"` covers the function. It does not test the `amount <= 0` guard. Both statements are true simultaneously. Coverage.py reports the former. Your production system is exposed to the latter.
+
+## The gap is bigger than you think
+
+We ran `quell find` on a sample of real Python projects — open source repos with CI, with coverage requirements, with active development. In every case we measured, a meaningful fraction of guard clauses, Pydantic validators, and documented raises had zero corresponding tests.
+
+The projects had 80%+ line coverage. The edge case gap was real.
+
+This isn't a team competence problem. It's a tooling gap problem. Coverage tools show you which lines ran. They don't show you which requirements were validated. No existing tool was connecting the two.
+
+## What Production Readiness Score measures instead
+
+PRS is computed after every `quell find` run:
+
+```
+PRS = (Σ confidence of WRITTEN tests / total edge cases × 100) × 100
+```
+
+**WRITTEN** means a test that passed all 5 gates — including Gate 4 (passes on correct code) and Gate 5 (fails when the violation is injected). A WRITTEN test with 90% confidence means: with 90% certainty, this test will catch the bug it's supposed to catch.
+
+**Total edge cases** means every testable constraint Quell found: every `Raises:` in a docstring, every `Field(gt=0)` in a Pydantic model, every boundary condition in a guard clause.
+
+The modifiers exist to capture quality signals that don't fit the formula:
+
+- **+5** if every FLAGGED item has a `# quell: flagged` comment — meaning your team acknowledged the gap and documented why it can't be auto-tested.
+- **-10** if any HIGH-confidence test has `@pytest.mark.skip` — you had the test, you skipped it. That's a production risk.
+
+The result is a 0–100 number in three tiers:
+
+| PRS | Tier | What it means |
+|-----|------|---------------|
+| ≥80 | 🟢 Production Ready | Edge cases are validated. Ship with confidence. |
+| 60–79 | 🟡 Review Needed | Gaps exist. Review before the next release. |
+| &lt;60 | 🔴 Needs Work | Significant unvalidated edge cases. Real production risk. |
+
+## PRS vs coverage: a concrete example
+
+Imagine a payments module with:
+- 3 functions
+- 8 documented edge cases (raises, bounds, return constraints)
+- 200 lines of code
+
+| Metric | What it says |
+|--------|-------------|
+| Line coverage: 91% | 182 of 200 lines executed in tests |
+| PRS: 52/100 🔴 | 4 of 8 edge cases have verified tests |
+
+These two metrics are measuring different things. 91% coverage feels safe. 52/100 PRS means nearly half your documented requirements are unverified. Both numbers are correct. Only one of them predicts what breaks in production.
+
+## Tracking PRS over time
+
+PRS isn't useful as a one-time snapshot. It's useful as a trend.
+
+Run `quell find src/` in CI on every PR. The GitHub Action posts a comment:
+
+```
+Quell Scan — 6 untested edge cases found
+
+✓ WRITTEN     (3)   confidence avg: 87%
+⚠ SCAFFOLDED  (2)   stubs in tests/scaffold/
+✗ FLAGGED     (1)   src/billing.py:142 — depends on external API
+
+PRS  71/100  🟡 Review Needed
+```
+
+When PRS drops on a PR, someone added code with new constraints and didn't cover them. You catch it in review, not in production.
+
+Set a threshold:
+
+```toml
+[tool.quell]
+prs_threshold = 80   # quell ci exits non-zero below this
+```
+
+```bash
+quell ci src/   # use as a CI gate
+```
+
+PRS is written to `quell-report.json` after every scan. It's readable by CI, parseable by dashboards, and viewable with `quell score`.
+
+## What to do when PRS is low
+
+PRS under 60 means you have a real gap. The three-bucket output tells you exactly where:
+
+1. **WRITTEN** tests — already handled, trust them.
+2. **SCAFFOLDED** stubs — these are in `tests/scaffold/`. Open them, complete the assertion, move them to your main test suite. Usually 10 minutes of work per stub.
+3. **FLAGGED** items — these are edge cases Quell can't auto-test (live API dependencies, complex state). Add `# quell: flagged` to document the gap and you get the +5 modifier. Then decide if you want to test it manually.
+
+The goal isn't to hit 100 immediately. It's to make progress visible and stop edge cases from silently accumulating.
+
+## Coverage isn't going away
+
+Line coverage still matters. It tells you which parts of the codebase aren't being exercised at all — that's valuable information. Keep running coverage.py. Keep the 80% requirement.
+
+PRS adds a layer on top: of the code that *is* covered, how much of the *documented behavior* is actually validated?
+
+Both tools are measuring real things. They're just measuring different things. You need both.
+
+---
+
+*[Install Quell →](/docs/quickstart) and run `quell find src/` to see your current PRS. Takes about 30 seconds on most projects.*

@@ -6,14 +6,14 @@ import { getAllBlogPosts } from "@/lib/blog";
 import type { BlogPost } from "@/lib/blog";
 
 export const metadata: Metadata = {
-  title: "Blog — Python Testing, Docstrings, and Requirement Coverage",
+  title: "Blog — Python Testing, Edge Cases, and Production Readiness",
   description:
-    "Practical articles on spec-first Python testing, requirement coverage, PySpark schema testing, and test generation. Written by the team behind Quell.",
+    "Practical articles on Python edge case testing, Production Readiness Score, the 5-gate pipeline, PySpark schema testing, and test generation. Written by the team behind Quell.",
   alternates: { canonical: "https://quell.buildsbyshashank.tech/blog" },
   openGraph: {
-    title: "Quell Blog — Python Testing Insights",
+    title: "Quell Blog — Python Testing & Production Readiness",
     description:
-      "Practical articles on spec-first Python testing, requirement coverage, PySpark schema testing, and test generation.",
+      "Practical articles on Python edge case testing, Production Readiness Score, the 5-gate pipeline, and test generation. Written by the team behind Quell.",
     url: "https://quell.buildsbyshashank.tech/blog",
     type: "website",
   },
@@ -163,10 +163,10 @@ export default function BlogIndexPage() {
           <div className="mb-10">
             <p className="text-xs font-medium tracking-widest text-[#333] uppercase mb-3">Blog</p>
             <h1 className="text-3xl font-bold tracking-tight mb-2 text-[#e8e8e8]">
-              Python Testing & Requirement Coverage
+              Python Testing, Edge Cases & Production Readiness
             </h1>
             <p className="text-[#555] text-sm">
-              Case studies, tutorials, and engineering decisions from the Quell team.
+              Engineering decisions, tutorials, and product updates from the Quell team.
             </p>
           </div>
 

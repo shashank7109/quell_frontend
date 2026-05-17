@@ -1,0 +1,152 @@
+---
+title: "Quell v2.0.0: We Stopped Generating Tests and Started Proving Things"
+description: "v1 was a test generator. v2 is a proof engine with three buckets, five gates, and a score that tells you exactly how production-ready your edge cases are. Here's everything that changed and why we had to."
+date: "2026-05-17"
+category: "Product"
+tags: ["release", "quell", "quelltest", "python testing", "test generation", "edge cases", "production readiness", "pytest", "v2"]
+author: "Shashank Bindal"
+authorUrl: "https://shashankbindal.me"
+---
+
+# Quell v2.0.0: We Stopped Generating Tests and Started Proving Things
+
+v1 was fast. You ran `quell check src/`, it scanned your code, synthesized tests, wrote them to disk. Done in seconds.
+
+The problem was simple and brutal: we had no idea if those tests were any good.
+
+Some were excellent. Some were syntactically valid but logically hollow — they ran the happy path and asserted `result is not None` while the docstring said *raises ValueError when amount is zero*. The test looked like coverage. It was actually noise. And we were writing it straight to your test file, next to tests you'd spent real time on.
+
+That's the version of Quell we shipped as 1.0.0. We're not proud of it. v2.0.0 is the version we actually wanted to build from day one.
+
+## What broke in production because of v1
+
+The feedback we kept getting from early users went like this:
+
+> "I ran Quell, got 30 tests written, PR passed CI, merged to main. Two weeks later a customer hit the exact edge case Quell was supposed to have tested. I checked — Quell had written a test for it. The test was passing. The test was wrong."
+
+That's the worst possible outcome. You trusted the tool, it gave you false confidence, you shipped broken code. The test coverage number went up. The production reliability went down.
+
+We traced the failure mode back to the same root cause every time: **a test that passes on correct code but also passes on violated code is not a test — it's a green checkbox that proves nothing.**
+
+v1 had no way to detect this. We generated, wrote, moved on.
+
+## The three things v2 gets right that v1 got wrong
+
+### 1. Every test now proves it would catch the bug
+
+Before any test is written to disk, Quell injects a targeted violation into the source — comments out the `raise`, weakens the `Field` bound, replaces the `return` with `None` — and runs the test against that violated code. If the test still passes, the test is wrong. We don't write it.
+
+This is Gate 4 + Gate 5 of the new 5-gate pipeline. It's what turns test generation into test *verification*.
+
+The number that matters: on real codebases, about **18% of generated tests fail this check**. They looked correct. They ran green. They caught nothing. In v1, all 18% would have landed in your repo.
+
+### 2. Nothing gets silently dropped
+
+v1 had two states: written, or not generated. If Quell couldn't write a test, it printed a line and moved on. You had no idea what was lost or why.
+
+v2 has three explicit buckets:
+
+| Bucket | What it means |
+|--------|--------------|
+| **WRITTEN** | Passed all 5 gates. Written to your test file. Trust it. |
+| **SCAFFOLDED** | Failed a gate. A stub is written to `tests/scaffold/` with exactly which gates it passed and why it stopped. |
+| **FLAGGED** | Cannot synthesize. One-line reason, exact source location. |
+
+SCAFFOLDED is the key addition. Instead of silently failing, Quell writes a stub with the right function name, the constraint in the docstring, and a `# TODO: complete assertion` comment. Your test exists. It's just waiting for the one assertion only you can write (because it involves live API credentials, or object state, or a class constructor). The edge case is documented. Nothing falls through the floor.
+
+### 3. One number tells you where you stand
+
+The Production Readiness Score (PRS) is a 0–100 score computed after every `quell find` run:
+
+```
+PRS = (sum of confidence scores for WRITTEN tests / total edge cases × 100) × 100
+```
+
+Three tiers. No ambiguity:
+
+- **🟢 ≥80** — Production Ready. Ship it.
+- **🟡 60–79** — Review Needed. Some gaps need attention.
+- **🔴 &lt;60** — Needs Work. Real risk in production.
+
+PRS is written to `quell-report.json`, shown by `quell score`, and posted as a PR comment by the GitHub Action on every scan. It's the number your team can actually track week over week.
+
+## The new command surface
+
+v2 collapses the old fragmented CLI into one primary command:
+
+```bash
+# Find all untested edge cases — three-bucket output
+quell find src/
+
+# Find + write verified tests
+quell find src/ --fix
+
+# CI gate — exits non-zero if PRS below threshold
+quell ci src/
+
+# Production Readiness Score
+quell score src/
+
+# GitHub Action setup (one command, complete workflow)
+quell install --action
+```
+
+`quell check` is gone. `quell prove` is gone. `quell scan` is gone. Everything that used to require four different commands with different flags now flows through `quell find`.
+
+## Groq is the new default LLM
+
+The LLM fallback in v1 pointed to Anthropic by default, which required an API key most users didn't have. The rule engine handled the common cases but you needed the LLM for complex unstructured specs.
+
+In v2, Groq is the default. Groq's inference is fast enough (typically under 2 seconds) that the LLM fallback doesn't meaningfully slow down a scan. And Groq offers a free tier that covers typical `quell find` runs.
+
+More importantly: `use_llm = false` is now the explicit default. The rule engine handles ~75% of cases with no network, no API key, no code leaving your machine. You opt in to LLM when you need it.
+
+## What the 5 gates actually are
+
+Every candidate test goes through five sequential gates. Fail any gate, you land in SCAFFOLDED, not rejected.
+
+| Gate | What it checks |
+|------|---------------|
+| 1 | Parses as valid Python + imports resolve |
+| 2 | Not a duplicate of an existing test (AST fingerprint + n-gram) |
+| 3 | No forbidden operations (no `os.system`, no subprocess shell, no credential reads) |
+| 4 | Passes on the original, correct source |
+| 5 | Fails when the violation is injected |
+
+Gates 1–3 are fast (under 50ms combined). Gates 4–5 spawn subprocess pytest runs — they're slower, but they're the ones that actually prove something.
+
+## Upgrading from v1
+
+```bash
+pip install --upgrade quelltest
+quell init   # regenerates pyproject.toml [tool.quell] with v2 defaults
+```
+
+The `[tool.quell]` config gained a few new keys:
+
+```toml
+[tool.quell]
+llm_provider = "groq"              # was "anthropic"
+use_llm = false                    # new — LLM is now opt-in
+prs_threshold = 60                 # new — for quell ci gate
+scaffold_dir = "tests/scaffold"    # new — where SCAFFOLDED stubs go
+```
+
+`score_threshold` from v1 is gone — replace with `prs_threshold`. Groq replaces Anthropic as default. Everything else is backwards compatible.
+
+## The honest take
+
+v2 is slower than v1. Two subprocess runs per test candidate adds real time. On a project with 50 uncovered edge cases, you're looking at 2-4 minutes for a full scan with verification.
+
+We think that tradeoff is correct. A 3-minute process that writes 40 tests you can trust, scaffolds 8 you need to finish, and flags 2 it can't handle — that's more valuable than a 30-second process that writes 50 tests of unknown quality.
+
+The 18% false positive rate we measured isn't a Quell problem. It's a test generation problem. It exists in every tool that generates tests without verifying them. We just decided to measure it and do something about it.
+
+That's v2.0.0.
+
+---
+
+- [Quickstart →](/docs/quickstart)
+- [How the 5-gate pipeline works →](/docs/how-it-works)
+- [Configuration reference →](/docs/configuration/pyproject)
+- [GitHub →](https://github.com/quelltest/quelltest-lib)

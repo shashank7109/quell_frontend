@@ -1,0 +1,177 @@
+---
+title: "The 5-Gate Pipeline: Why One Check Isn't Enough to Trust a Generated Test"
+description: "Most AI test tools run one check: does it parse? Quell runs five. Here's what each gate catches, what breaks without it, and why the order matters."
+date: "2026-05-15"
+category: "Engineering"
+tags: ["python testing", "test generation", "ast", "static analysis", "mutation testing", "security", "pytest", "quelltest", "engineering"]
+author: "Shashank Bindal"
+authorUrl: "https://shashankbindal.me"
+---
+
+# The 5-Gate Pipeline: Why One Check Isn't Enough to Trust a Generated Test
+
+When Quell generates a test, that test goes through five sequential checks before it's written to disk. Fail any one of them, and instead of being rejected silently, the requirement gets a scaffold stub in `tests/scaffold/` — a half-done test with a `# TODO` comment waiting for the one thing only you can write.
+
+This post explains what each gate checks, what it would miss if we removed it, and why the order is deliberate.
+
+## Gate 1 — AST validity + import resolution
+
+**What it checks:** The generated test source is parsed as Python. Import statements are traced to verify the target function actually exists at the import path.
+
+**What breaks without it:** An LLM or template engine generates syntactically broken code more often than you'd expect — especially for functions with complex signatures, class methods, or functions in nested modules. A test that can't parse is useless. A test that imports `from payments import proces_payment` (typo) will fail in CI in a way that's confusing to debug.
+
+Gate 1 catches these immediately, before any subprocess is spawned.
+
+```python
+# Gate 1 rejects this — SyntaxError caught at parse time
+def test_process_payment_amount_bound(:
+    with pytest.raises(ValueError):
+        process_payment(-1)
+```
+
+```python
+# Gate 1 also rejects this — import can't resolve
+from payments.v2.core import process_payement  # typo
+```
+
+**Cost:** Under 5ms. Pure Python AST parse + import path walk.
+
+## Gate 2 — Originality
+
+**What it checks:** The generated test is compared against every existing test in the target test file using two signals: an AST fingerprint (structural similarity) and n-gram overlap on the token stream.
+
+**What breaks without it:** Without originality checking, Quell would re-generate tests that already exist. This seems like a minor issue until you see it in practice: a test suite with 200 tests often has 10–15 that are near-duplicates written at different times by different people. If Quell generates a test that's structurally identical to one you wrote last quarter, injecting it again is noise that makes the test file harder to read — and potentially causes duplicate test names that break pytest collection.
+
+The AST fingerprint catches structural duplicates even when variable names differ. The n-gram check catches semantic duplicates even when the AST structure looks different.
+
+```python
+# Already exists in test_payments.py
+def test_payment_negative_amount():
+    with pytest.raises(ValueError):
+        process_payment(-10.0, "USD")
+
+# Gate 2 rejects this generated version — too similar
+def test_process_payment_negative():
+    with pytest.raises(ValueError):
+        process_payment(-5, "USD")
+```
+
+**Cost:** Under 15ms per test candidate. Fingerprint computation is a single AST walk.
+
+## Gate 3 — Security
+
+**What it checks:** The generated test is scanned for forbidden operations: `os.system`, `subprocess.Popen` with `shell=True`, file deletion (`os.remove`, `shutil.rmtree`), environment variable reads (`os.environ.get`), and credential access patterns.
+
+**What breaks without it:** This might sound paranoid, but LLMs occasionally generate test code that does things tests shouldn't do. We've seen generated tests that:
+
+- Read `os.environ["DATABASE_URL"]` to construct a connection string (test now depends on a prod env var that CI doesn't have)
+- Call `subprocess.run(["rm", "-rf", temp_dir])` for cleanup (fine in isolation, catastrophic if `temp_dir` resolves wrong)
+- Write to `~/.ssh/known_hosts` as a fixture side effect
+
+None of these are malicious — they're the LLM pattern-matching on code it's seen in test suites. But a generated test that modifies your filesystem or reads prod credentials is not a test you want written to your repo automatically.
+
+Gate 3 is a static scan, not a sandbox. It catches obvious patterns, not all possible dangerous operations. That's intentional — a stricter gate would reject too many legitimate tests.
+
+**Cost:** Under 10ms. Pattern matching on the AST.
+
+## Gate 4 — Passes on correct code
+
+**What it checks:** The generated test is run in a subprocess against the original, unmodified source. It must pass.
+
+**What breaks without it:** A logically incorrect test — wrong expected exception type, wrong argument to trigger the condition, wrong assertion — would be written to disk. It would fail in CI immediately, create a noisy failing test that blocks your pipeline, and require manual cleanup.
+
+More subtly: a test that "tests" a `ValueError` condition but doesn't actually trigger it will pass (because no exception is raised and there's no `pytest.raises`, so it completes silently). This is the category of test that looks correct, is syntactically fine, but proves nothing.
+
+```python
+# Gate 4 catches this — passes on correct code for the wrong reason
+def test_payment_zero_amount():
+    # Missing pytest.raises — test passes vacuously
+    process_payment(0, "USD")   # actually raises ValueError, but test doesn't assert it
+```
+
+Gate 4 runs as a subprocess — not in-process. This matters because in-process test execution uses the module cache. If you import `payments` once and Quell modifies `payments.py` between test runs, the in-process Python won't see the change. Subprocess forces a fresh import every time.
+
+**Cost:** 1–3 seconds (one pytest subprocess run).
+
+## Gate 5 — Fails on violated code
+
+**What it checks:** Quell injects a minimal violation into the source, runs the test again, and verifies it fails. The violation is targeted to the specific constraint the test is supposed to check.
+
+| Constraint kind | Violation injected |
+|-----------------|-------------------|
+| `MUST_RAISE` | Comment out the `raise` statement |
+| `BOUNDARY` | Weaken `Field(gt=0)` to `Field(gt=-9999)` |
+| `MUST_RETURN` | Replace `return result` with `return None` |
+| `NOT_NULL` | Remove the null guard |
+| `ENUM_VALID` | Remove the enum validation guard |
+
+The source is always restored in a `finally` block. No matter what happens during Gate 5 — test crash, pytest segfault, keyboard interrupt — the original source comes back.
+
+**What breaks without it:** This is the gate that matters most and is the most commonly skipped by other tools.
+
+A test that passes on correct code but also passes on violated code is not testing the requirement. It's testing something else — maybe the happy path, maybe nothing at all. Without Gate 5, you have no way to know which category your generated test falls into.
+
+The data from running Gate 5 on real codebases: **~18% of tests that pass Gate 4 fail Gate 5.** They look correct. They run green. They don't catch the violation they're supposed to catch. Without this gate, all 18% would be written to your repo as trusted tests.
+
+```python
+# This test passes Gate 4 — it passes on correct code
+def test_process_payment_zero():
+    result = process_payment(100.0, "USD")   # wrong amount, tests happy path
+    assert result["status"] == "ok"
+
+# Gate 5: comment out the raise in process_payment
+# Re-run test → still passes (it was never testing the raise anyway)
+# Gate 5 FAILS → test is routed to SCAFFOLDED, not WRITTEN
+```
+
+**Cost:** 1–3 seconds (one pytest subprocess run with violated source).
+
+## The order isn't arbitrary
+
+Gates 1–3 are cheap (under 30ms total). Gates 4–5 are expensive (2–6 seconds per candidate). Running them in this order means you don't pay subprocess costs for tests that fail the fast checks.
+
+More importantly: Gate 3 (security) must come before Gates 4–5. A generated test that calls `os.system` should not be *executed* before it's rejected. The security gate is a static check precisely so dangerous tests are caught before any execution happens.
+
+## What happens when a gate fails
+
+A gate failure doesn't mean the requirement is discarded. It means the requirement is SCAFFOLDED:
+
+```python
+# quell: scaffold — complete the assertions below and move to your test suite
+def test_quell_scaffold_process_payment_abc123():
+    """
+    Quell scaffold — gates passed: 3/5
+    Constraint: raises ValueError when amount <= 0
+    Gate 4 failed: test passed on violated code
+    """
+    from payments import process_payment
+    # quell: complete assertion
+    # TODO: call process_payment() and assert the edge case behaviour
+    pass
+```
+
+The stub tells you which gates passed, which gate stopped it, and exactly what the constraint was. You know exactly where to start.
+
+Three gates passed means it's syntactically valid, not a duplicate, and not dangerous. You just need to write the assertion that makes it actually test the thing it's supposed to test.
+
+## The full run
+
+```bash
+$ quell find src/ --fix
+
+Scanning 3 files, 23 edge cases found...
+
+✓ WRITTEN     (8)   Passed all 5 gates, written to test files
+⚠ SCAFFOLDED  (9)   Failed a gate — stubs in tests/scaffold/
+✗ FLAGGED     (6)   Cannot synthesize — see reasons below
+
+PRS  72/100  🟡 Review Needed
+```
+
+Eight tests you can trust. Nine stubs you can finish. Six gaps that need a human decision. Every single edge case accounted for. Nothing dropped silently.
+
+That's what five gates buys you.
+
+---
+
+*[How it works →](/docs/how-it-works) — full pipeline documentation with violation injection examples.*
