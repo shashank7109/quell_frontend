@@ -128,6 +128,11 @@ function BlogCard({ post, featured = false }: { post: BlogPost; featured?: boole
             Read more <ArrowRight size={11} />
           </span>
         </div>
+        {post.meta.author &&(
+          <p className="text-xs text-[#555]">
+            By {post.meta.author}
+          </p>
+        )}
       </div>
     </Link>
   );
